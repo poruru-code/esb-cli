@@ -48,6 +48,11 @@ func TestConfirmDeployInputsNonTTYSkipsPrompt(t *testing.T) {
 }
 
 func TestConfirmDeployInputsProceedAndSummaryContents(t *testing.T) {
+	repoRoot := t.TempDir()
+	setWorkingDir(t, repoRoot)
+	if err := os.WriteFile(filepath.Join(repoRoot, "docker-compose.docker.yml"), []byte("version: '3'\n"), 0o600); err != nil {
+		t.Fatalf("write compose marker: %v", err)
+	}
 	templatePath := writeSummaryTemplate(t)
 	prompter := &summaryPrompter{choice: "proceed"}
 	inputs := deployInputs{
@@ -134,6 +139,11 @@ func TestConfirmDeployInputsReturnsPromptError(t *testing.T) {
 }
 
 func TestAppendTemplateSummaryLinesDeterministicParams(t *testing.T) {
+	repoRoot := t.TempDir()
+	setWorkingDir(t, repoRoot)
+	if err := os.WriteFile(filepath.Join(repoRoot, "docker-compose.docker.yml"), []byte("version: '3'\n"), 0o600); err != nil {
+		t.Fatalf("write compose marker: %v", err)
+	}
 	templatePath := writeSummaryTemplate(t)
 	lines := appendTemplateSummaryLines(nil, deployTemplateInput{
 		TemplatePath: templatePath,
