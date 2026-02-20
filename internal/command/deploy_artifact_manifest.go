@@ -24,7 +24,7 @@ func writeDeployArtifactManifest(
 	inputs deployInputs,
 	bundleEnabled bool,
 	manifestOverride string,
-	esbVersion string,
+	_ string,
 ) (string, error) {
 	manifestPath := resolveDeployArtifactManifestPath(
 		inputs.ProjectDir,
@@ -74,7 +74,6 @@ func writeDeployArtifactManifest(
 		Project:       strings.TrimSpace(inputs.Project),
 		Env:           strings.TrimSpace(inputs.Env),
 		Mode:          strings.TrimSpace(inputs.Mode),
-		RuntimeStack:  defaultRuntimeStack(inputs.Mode, esbVersion),
 		Artifacts:     entries,
 		GeneratedAt:   time.Now().UTC().Format(time.RFC3339),
 		Generator: artifactcore.ArtifactGenerator{
@@ -86,18 +85,6 @@ func writeDeployArtifactManifest(
 		return "", err
 	}
 	return manifestPath, nil
-}
-
-func defaultRuntimeStack(mode, esbVersion string) artifactcore.RuntimeStackMeta {
-	version := strings.TrimSpace(esbVersion)
-	if version == "" {
-		version = "latest"
-	}
-	return artifactcore.RuntimeStackMeta{
-		APIVersion: artifactcore.RuntimeStackAPIVersion,
-		Mode:       strings.TrimSpace(mode),
-		ESBVersion: version,
-	}
 }
 
 func resolveDeployArtifactManifestPath(projectDir, project, env string, overridePath ...string) string {
