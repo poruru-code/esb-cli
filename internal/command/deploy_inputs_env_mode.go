@@ -66,20 +66,11 @@ func resolveDeployEnvFromStack(
 }
 
 func resolveDeployMode(
-	value string,
 	isTTY bool,
 	prompter interaction.Prompter,
 	previous string,
 	errOut io.Writer,
 ) (string, error) {
-	trimmed := strings.TrimSpace(strings.ToLower(value))
-	if trimmed != "" {
-		normalized, err := runtimecfg.NormalizeMode(trimmed)
-		if err != nil {
-			return "", fmt.Errorf("normalize mode: %w", err)
-		}
-		return normalized, nil
-	}
 	if !isTTY || prompter == nil {
 		return "", errModeRequired
 	}
