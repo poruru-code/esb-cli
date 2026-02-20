@@ -56,6 +56,17 @@ jobs:
         run: |
           git config --global url."https://x-access-token:${MODULES_TOKEN}@github.com/".insteadOf "https://github.com/"
 
+      - name: Cache Go build and modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+            ~/.cache/golangci-lint
+          key: ${{ runner.os }}-go-${{ hashFiles('go.sum', '.mise.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
       - name: Install CI toolchain
         run: >
           mise install
@@ -66,16 +77,6 @@ jobs:
 
       - name: Download Go modules
         run: go mod download
-
-      - name: Cache Go build and modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
 
       - name: Lint
         run: mise run lint
