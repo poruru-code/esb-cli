@@ -29,6 +29,13 @@ type deployRunOverrides struct {
 	forceBuildOnly bool
 }
 
+type deployRunConfig struct {
+	tag         string
+	noDeps      bool
+	buildImages bool
+	buildOnly   bool
+}
+
 func runDeployWithOverrides(
 	cli CLI,
 	deps Dependencies,
@@ -187,22 +194,49 @@ func (c *deployCommand) runWithOverrides(
 	flags DeployCmd,
 	overrides deployRunOverrides,
 ) error {
-	tag := resolveBrandTag()
-	noDeps := !flags.WithDeps
+	if len(inputs.Templates) == 0 {
+		return errTemplatePathRequired
+	}
+	runConfig, err := resolveDeployRunConfig(flags, overrides)
+	if err != nil {
+		return err
+	}
+	workflow := c.newWorkflow()
+
+	if err := c.runGeneratePhase(workflow, inputs, flags, runConfig); err != nil {
+		return err
+	}
+	manifestPath, err := c.writeArtifactManifest(inputs, flags, runConfig.tag)
+	if err != nil {
+		return err
+	}
+	if runConfig.buildOnly {
+		return nil
+	}
+	return c.runApplyPhase(workflow, inputs, flags, runConfig, manifestPath)
+}
+
+func resolveDeployRunConfig(flags DeployCmd, overrides deployRunOverrides) (deployRunConfig, error) {
+	buildOnly := flags.BuildOnly || overrides.forceBuildOnly
+	if buildOnly && flags.WithDeps {
+		return deployRunConfig{}, errors.New("deploy: --with-deps cannot be used with --build-only")
+	}
+	if buildOnly && strings.TrimSpace(flags.SecretEnv) != "" {
+		return deployRunConfig{}, errors.New("deploy: --secret-env cannot be used with --build-only")
+	}
 	buildImages := true
 	if overrides.buildImages != nil {
 		buildImages = *overrides.buildImages
 	}
-	if len(inputs.Templates) == 0 {
-		return errTemplatePathRequired
-	}
-	buildOnly := flags.BuildOnly || overrides.forceBuildOnly
-	if buildOnly && flags.WithDeps {
-		return errors.New("deploy: --with-deps cannot be used with --build-only")
-	}
-	if buildOnly && strings.TrimSpace(flags.SecretEnv) != "" {
-		return errors.New("deploy: --secret-env cannot be used with --build-only")
-	}
+	return deployRunConfig{
+		tag:         resolveBrandTag(),
+		noDeps:      !flags.WithDeps,
+		buildImages: buildImages,
+		buildOnly:   buildOnly,
+	}, nil
+}
+
+func (c *deployCommand) newWorkflow() deploy.Workflow {
 	workflow := deploy.NewDeployWorkflow(c.build, c.applyRuntime, c.ui, c.composeRunner)
 	if c.workflow.composeProvisioner != nil {
 		workflow.ComposeProvisioner = c.workflow.composeProvisioner
@@ -213,53 +247,31 @@ func (c *deployCommand) runWithOverrides(
 	if c.workflow.dockerClient != nil {
 		workflow.DockerClient = c.workflow.dockerClient
 	}
+	return workflow
+}
 
-	// Generate phase: build all templates and produce artifacts only.
+func (c *deployCommand) runGeneratePhase(
+	workflow deploy.Workflow,
+	inputs deployInputs,
+	flags DeployCmd,
+	runConfig deployRunConfig,
+) error {
 	templateCount := len(inputs.Templates)
 	for idx, tpl := range inputs.Templates {
-		buildOnly := true
-		if c.ui != nil {
-			title := "Generate plan"
-			if templateCount > 1 {
-				title = fmt.Sprintf("Generate plan (%d/%d)", idx+1, templateCount)
-			}
-			outputSummary := domaincfg.ResolveOutputSummary(tpl.TemplatePath, tpl.OutputDir, inputs.Env)
-			composeFiles := "auto"
-			if len(inputs.ComposeFiles) > 0 {
-				composeFiles = strings.Join(inputs.ComposeFiles, ", ")
-			}
-			rows := []ui.KeyValue{
-				{Key: "Template", Value: tpl.TemplatePath},
-				{Key: "Env", Value: inputs.Env},
-				{Key: "Mode", Value: inputs.Mode},
-				{Key: "Project", Value: inputs.Project},
-				{Key: "Output", Value: outputSummary},
-				{Key: "BuildOnly", Value: buildOnly},
-				{Key: "BuildImages", Value: buildImages},
-				{Key: "ComposeFiles", Value: composeFiles},
-			}
-			c.ui.Block("🧭", title, rows)
-		}
-		ctx := state.Context{
-			ProjectDir:     inputs.ProjectDir,
-			TemplatePath:   tpl.TemplatePath,
-			Env:            inputs.Env,
-			Mode:           inputs.Mode,
-			ComposeProject: inputs.Project,
-		}
+		c.renderGeneratePlanBlock(inputs, tpl, idx, templateCount, runConfig.buildImages)
 		request := deploy.Request{
-			Context:        ctx,
+			Context:        deployTemplateStateContext(inputs, tpl),
 			OutputDir:      tpl.OutputDir,
 			Parameters:     tpl.Parameters,
 			ImageSources:   tpl.ImageSources,
 			ImageRuntimes:  tpl.ImageRuntimes,
-			Tag:            tag,
+			Tag:            runConfig.tag,
 			NoCache:        flags.NoCache,
-			NoDeps:         noDeps,
+			NoDeps:         runConfig.noDeps,
 			Verbose:        flags.Verbose,
 			ComposeFiles:   inputs.ComposeFiles,
 			BuildOnly:      true,
-			BuildImages:    boolPtr(buildImages),
+			BuildImages:    boolPtr(runConfig.buildImages),
 			BundleManifest: flags.Bundle,
 			Emoji:          c.emojiEnabled,
 		}
@@ -267,8 +279,46 @@ func (c *deployCommand) runWithOverrides(
 			return fmt.Errorf("deploy workflow (%s): %w", tpl.TemplatePath, err)
 		}
 	}
+	return nil
+}
 
-	// Materialize artifact manifest after all generate steps.
+func (c *deployCommand) renderGeneratePlanBlock(
+	inputs deployInputs,
+	tpl deployTemplateInput,
+	idx int,
+	templateCount int,
+	buildImages bool,
+) {
+	if c.ui == nil {
+		return
+	}
+	title := "Generate plan"
+	if templateCount > 1 {
+		title = fmt.Sprintf("Generate plan (%d/%d)", idx+1, templateCount)
+	}
+	outputSummary := domaincfg.ResolveOutputSummary(tpl.TemplatePath, tpl.OutputDir, inputs.Env)
+	composeFiles := "auto"
+	if len(inputs.ComposeFiles) > 0 {
+		composeFiles = strings.Join(inputs.ComposeFiles, ", ")
+	}
+	rows := []ui.KeyValue{
+		{Key: "Template", Value: tpl.TemplatePath},
+		{Key: "Env", Value: inputs.Env},
+		{Key: "Mode", Value: inputs.Mode},
+		{Key: "Project", Value: inputs.Project},
+		{Key: "Output", Value: outputSummary},
+		{Key: "BuildOnly", Value: true},
+		{Key: "BuildImages", Value: buildImages},
+		{Key: "ComposeFiles", Value: composeFiles},
+	}
+	c.ui.Block("🧭", title, rows)
+}
+
+func (c *deployCommand) writeArtifactManifest(
+	inputs deployInputs,
+	flags DeployCmd,
+	tag string,
+) (string, error) {
 	manifestPath, err := writeDeployArtifactManifest(
 		inputs,
 		flags.Bundle,
@@ -276,31 +326,29 @@ func (c *deployCommand) runWithOverrides(
 		tag,
 	)
 	if err != nil {
-		return fmt.Errorf("write artifact manifest: %w", err)
+		return "", fmt.Errorf("write artifact manifest: %w", err)
 	}
 	if c.ui != nil {
 		c.ui.Info(fmt.Sprintf("Artifact manifest: %s", manifestPath))
 	}
-	if buildOnly {
-		return nil
-	}
+	return manifestPath, nil
+}
 
-	// Apply phase: no build, only artifact-driven apply + provisioner.
+func (c *deployCommand) runApplyPhase(
+	workflow deploy.Workflow,
+	inputs deployInputs,
+	flags DeployCmd,
+	runConfig deployRunConfig,
+	manifestPath string,
+) error {
 	applyTemplate := inputs.Templates[0]
-	applyCtx := state.Context{
-		ProjectDir:     inputs.ProjectDir,
-		TemplatePath:   applyTemplate.TemplatePath,
-		Env:            inputs.Env,
-		Mode:           inputs.Mode,
-		ComposeProject: inputs.Project,
-	}
 	applyReq := deploy.Request{
-		Context:       applyCtx,
+		Context:       deployTemplateStateContext(inputs, applyTemplate),
 		ArtifactPath:  manifestPath,
 		SecretEnvPath: flags.SecretEnv,
 		OutputDir:     applyTemplate.OutputDir,
-		Tag:           tag,
-		NoDeps:        noDeps,
+		Tag:           runConfig.tag,
+		NoDeps:        runConfig.noDeps,
 		Verbose:       flags.Verbose,
 		ComposeFiles:  inputs.ComposeFiles,
 		BuildOnly:     false,
@@ -309,6 +357,19 @@ func (c *deployCommand) runWithOverrides(
 		return fmt.Errorf("deploy apply (%s): %w", applyTemplate.TemplatePath, err)
 	}
 	return nil
+}
+
+func deployTemplateStateContext(
+	inputs deployInputs,
+	tpl deployTemplateInput,
+) state.Context {
+	return state.Context{
+		ProjectDir:     inputs.ProjectDir,
+		TemplatePath:   tpl.TemplatePath,
+		Env:            inputs.Env,
+		Mode:           inputs.Mode,
+		ComposeProject: inputs.Project,
+	}
 }
 
 func resolveDeployEmojiEnabled(out io.Writer, flags DeployCmd) (bool, error) {

@@ -4,31 +4,12 @@
 package command
 
 import (
-	"path/filepath"
-	"strings"
+	"github.com/poruru-code/esb-cli/internal/infra/compose"
 )
 
 func normalizeComposeFiles(files []string, baseDir string) []string {
 	if len(files) == 0 {
 		return nil
 	}
-	out := make([]string, 0, len(files))
-	seen := map[string]struct{}{}
-	for _, file := range files {
-		trimmed := strings.TrimSpace(file)
-		if trimmed == "" {
-			continue
-		}
-		path := trimmed
-		if !filepath.IsAbs(path) && strings.TrimSpace(baseDir) != "" {
-			path = filepath.Join(baseDir, path)
-		}
-		path = filepath.Clean(path)
-		if _, ok := seen[path]; ok {
-			continue
-		}
-		out = append(out, path)
-		seen[path] = struct{}{}
-	}
-	return out
+	return compose.NormalizeComposeFilePaths(files, baseDir)
 }
