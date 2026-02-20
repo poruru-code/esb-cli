@@ -26,6 +26,12 @@ func TestBuildxHint(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			got := buildxHint(tc.output)
+			if tc.want == "" {
+				if got != "" {
+					t.Fatalf("expected empty hint for %q, got %q", tc.output, got)
+				}
+				return
+			}
 			if !strings.Contains(got, tc.want) {
 				t.Fatalf("expected %q to contain %q", got, tc.want)
 			}
