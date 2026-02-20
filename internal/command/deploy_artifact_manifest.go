@@ -24,7 +24,6 @@ func writeDeployArtifactManifest(
 	inputs deployInputs,
 	bundleEnabled bool,
 	manifestOverride string,
-	_ string,
 ) (string, error) {
 	manifestPath := resolveDeployArtifactManifestPath(
 		inputs.ProjectDir,

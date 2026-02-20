@@ -198,7 +198,7 @@ func TestManifestGenerationDoesNotRequireJavaJars(t *testing.T) {
 	if err := os.WriteFile(inputs.Templates[0].TemplatePath, []byte("Resources: {}\n"), 0o600); err != nil {
 		t.Fatalf("write template: %v", err)
 	}
-	manifestPath, err := writeDeployArtifactManifest(inputs, false, "", "latest")
+	manifestPath, err := writeDeployArtifactManifest(inputs, false, "")
 	if err != nil {
 		t.Fatalf("writeDeployArtifactManifest() error = %v", err)
 	}

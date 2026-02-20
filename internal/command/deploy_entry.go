@@ -308,7 +308,6 @@ func (c *deployCommand) writeArtifactManifest(
 		inputs,
 		flags.Bundle,
 		flags.Manifest,
-		tag,
 	)
 	if err != nil {
 		return "", fmt.Errorf("write artifact manifest: %w", err)
