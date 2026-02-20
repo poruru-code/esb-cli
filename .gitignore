@@ -1,0 +1,33 @@
+# Go
+esb
+*.test
+*.out
+coverage.out
+
+# Air
+tmp/
+air_errors.log
+
+# mise local overrides
+.mise.local.toml
+.lefthook-local.yml
+
+# Local runtime/setup artifacts
+.esb/
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Environment files
+.env
+.env.local
+
+# Logs and editor artifacts
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*.swo
+*~

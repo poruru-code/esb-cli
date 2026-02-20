@@ -1,0 +1,87 @@
+# Where: .github/workflows/ci.yml
+# What: Run repository quality checks for esb-cli.
+# Why: Ensure lint/test/build pass before merge.
+
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-test-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GOPRIVATE: github.com/poruru-code/esb/*
+      GONOSUMDB: github.com/poruru-code/esb/*
+      GONOPROXY: github.com/poruru-code/esb/*
+      GIT_TERMINAL_PROMPT: "0"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up mise
+        uses: jdx/mise-action@v3
+        with:
+          install: false
+          cache: true
+
+      - name: Trust mise config
+        run: mise trust --yes .mise.toml
+
+      - name: Create GitHub App token for private modules
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.ESB_APP_ID }}
+          private-key: ${{ secrets.ESB_APP_PRIVATE_KEY }}
+          owner: poruru-code
+          repositories: esb
+
+      - name: Configure git auth for private Go modules
+        env:
+          MODULES_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          git config --global url."https://x-access-token:${MODULES_TOKEN}@github.com/".insteadOf "https://github.com/"
+
+      - name: Install CI toolchain
+        run: >
+          mise install
+          go
+          go:github.com/golangci/golangci-lint/cmd/golangci-lint
+          go:mvdan.cc/gofumpt
+          go:golang.org/x/tools/cmd/goimports
+
+      - name: Download Go modules
+        run: go mod download
+
+      - name: Cache Go build and modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Lint
+        run: mise run lint
+
+      - name: Test
+        run: mise run test
+
+      - name: Build
+        run: mise run build

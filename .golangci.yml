@@ -1,0 +1,44 @@
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: mod
+
+linters:
+  disable:
+    - cyclop
+    - depguard
+    - dupl
+    - exhaustruct
+    - forbidigo
+    - funlen
+    - gochecknoglobals
+    - gocognit
+    - goconst
+    - gocyclo
+    - gomoddirectives
+    - ireturn
+    - lll
+    - mnd
+    - maintidx
+    - nestif
+    - nlreturn
+    - paralleltest
+    - perfsprint
+    - prealloc
+    - tagalign
+    - tagliatelle
+    - tenv
+    - testpackage
+    - varnamelen
+    - wsl
+
+linters-settings:
+  gofumpt:
+    extra-rules: true
+
+issues:
+  exclude-rules:
+    - path: ^internal/generator/
+      linters:
+        - err113
+        - wrapcheck

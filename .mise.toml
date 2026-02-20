@@ -1,0 +1,46 @@
+# Toolchain versions managed by mise.
+
+[tools]
+# Runtimes
+go = "1.25.1"
+lefthook = "2.0.15"
+
+# Go tooling (installed via go install)
+"go:github.com/golangci/golangci-lint/cmd/golangci-lint" = "latest"
+"go:mvdan.cc/gofumpt" = "latest"
+"go:golang.org/x/tools/cmd/goimports" = "latest"
+"go:github.com/air-verse/air" = "latest"
+
+[env]
+_.path = ["~/.local/bin"]
+
+[tasks.setup]
+description = "Prepare local development environment (hooks/tools only)"
+run = "lefthook install"
+
+[tasks.lint]
+description = "Run Go linter with project config"
+run = "golangci-lint run ./..."
+
+[tasks.build]
+description = "Build esb CLI binary"
+run = "go build -o esb ./cmd/esb"
+
+[tasks.install]
+description = "Install esb binary to ~/.local/bin"
+run = [
+  "mise run build",
+  "mkdir -p $HOME/.local/bin",
+  "if [ -f $HOME/.local/bin/esb ]; then mv $HOME/.local/bin/esb $HOME/.local/bin/esb.old; fi",
+  "cp esb $HOME/.local/bin/esb",
+  "rm -f $HOME/.local/bin/esb.old",
+  "echo '✓ Installed to $HOME/.local/bin/esb'",
+]
+
+[tasks.test]
+description = "Run Go tests"
+run = "go test ./..."
+
+[tasks.dev]
+description = "Rebuild and install esb automatically on file changes"
+run = "air"
