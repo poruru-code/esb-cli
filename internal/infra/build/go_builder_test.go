@@ -66,17 +66,10 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 
 	var gotCfg config.GeneratorConfig
 	var gotOpts templategen.GenerateOptions
-	generate := func(cfg config.GeneratorConfig, opts templategen.GenerateOptions) ([]template.FunctionSpec, error) {
+	generate := stubGenerateFunctions(t, func(cfg config.GeneratorConfig, opts templategen.GenerateOptions) {
 		gotCfg = cfg
 		gotOpts = opts
-
-		outputDir := cfg.Paths.OutputDir
-		writeTestFile(t, filepath.Join(outputDir, "config", "functions.yml"), "functions: {}")
-		writeTestFile(t, filepath.Join(outputDir, "config", "routing.yml"), "routes: []")
-		writeTestFile(t, filepath.Join(outputDir, "config", "resources.yml"), "resources: {}")
-		writeTestFile(t, filepath.Join(outputDir, "functions", "hello", "Dockerfile"), "FROM scratch\n")
-		return []template.FunctionSpec{{Name: "hello", ImageName: "hello"}}, nil
-	}
+	})
 
 	builderName := meta.Slug + "-buildx"
 	dockerRunner := &recordRunner{
@@ -249,15 +242,9 @@ func TestGoBuilderBuildRenderOnlySkipsImageBuilds(t *testing.T) {
 	writeTestFile(t, filepath.Join(repoRoot, "docker-bake.hcl"), "# bake stub\n")
 
 	var gotOpts templategen.GenerateOptions
-	generate := func(cfg config.GeneratorConfig, opts templategen.GenerateOptions) ([]template.FunctionSpec, error) {
+	generate := stubGenerateFunctions(t, func(_ config.GeneratorConfig, opts templategen.GenerateOptions) {
 		gotOpts = opts
-		outputDir := cfg.Paths.OutputDir
-		writeTestFile(t, filepath.Join(outputDir, "config", "functions.yml"), "functions: {}")
-		writeTestFile(t, filepath.Join(outputDir, "config", "routing.yml"), "routes: []")
-		writeTestFile(t, filepath.Join(outputDir, "config", "resources.yml"), "resources: {}")
-		writeTestFile(t, filepath.Join(outputDir, "functions", "hello", "Dockerfile"), "FROM scratch\n")
-		return []template.FunctionSpec{{Name: "hello", ImageName: "hello"}}, nil
-	}
+	})
 
 	dockerRunner := &recordRunner{
 		outputs: map[string][]byte{
@@ -360,15 +347,9 @@ func TestGoBuilderBuildRenderOnlyUsesContainerRegistryOverride(t *testing.T) {
 	writeTestFile(t, filepath.Join(repoRoot, "docker-bake.hcl"), "# bake stub\n")
 
 	var gotOpts templategen.GenerateOptions
-	generate := func(cfg config.GeneratorConfig, opts templategen.GenerateOptions) ([]template.FunctionSpec, error) {
+	generate := stubGenerateFunctions(t, func(_ config.GeneratorConfig, opts templategen.GenerateOptions) {
 		gotOpts = opts
-		outputDir := cfg.Paths.OutputDir
-		writeTestFile(t, filepath.Join(outputDir, "config", "functions.yml"), "functions: {}")
-		writeTestFile(t, filepath.Join(outputDir, "config", "routing.yml"), "routes: []")
-		writeTestFile(t, filepath.Join(outputDir, "config", "resources.yml"), "resources: {}")
-		writeTestFile(t, filepath.Join(outputDir, "functions", "hello", "Dockerfile"), "FROM scratch\n")
-		return []template.FunctionSpec{{Name: "hello", ImageName: "hello"}}, nil
-	}
+	})
 
 	dockerRunner := &recordRunner{
 		outputs: map[string][]byte{
@@ -437,6 +418,24 @@ func setWorkingDir(t *testing.T, dir string) {
 	})
 }
 
+func stubGenerateFunctions(
+	t *testing.T,
+	onGenerate func(config.GeneratorConfig, templategen.GenerateOptions),
+) func(config.GeneratorConfig, templategen.GenerateOptions) ([]template.FunctionSpec, error) {
+	t.Helper()
+	return func(cfg config.GeneratorConfig, opts templategen.GenerateOptions) ([]template.FunctionSpec, error) {
+		if onGenerate != nil {
+			onGenerate(cfg, opts)
+		}
+		outputDir := cfg.Paths.OutputDir
+		writeTestFile(t, filepath.Join(outputDir, "config", "functions.yml"), "functions: {}")
+		writeTestFile(t, filepath.Join(outputDir, "config", "routing.yml"), "routes: []")
+		writeTestFile(t, filepath.Join(outputDir, "config", "resources.yml"), "resources: {}")
+		writeTestFile(t, filepath.Join(outputDir, "functions", "hello", "Dockerfile"), "FROM scratch\n")
+		return []template.FunctionSpec{{Name: "hello", ImageName: "hello"}}, nil
+	}
+}
+
 func TestSortedAnyKeys(t *testing.T) {
 	keys := sortedAnyKeys(map[string]any{
 		"b": 2,
@@ -477,23 +476,22 @@ type commandCall struct {
 }
 
 func (r *recordRunner) Run(_ context.Context, dir, name string, args ...string) error {
-	r.calls = append(r.calls, commandCall{
-		dir:  dir,
-		name: name,
-		args: append([]string{}, args...),
-	})
-	r.captureBakeFiles(dir, name, args)
+	r.recordCall(dir, name, args...)
 	return r.err
 }
 
 func (r *recordRunner) RunQuiet(_ context.Context, dir, name string, args ...string) error {
+	r.recordCall(dir, name, args...)
+	return r.err
+}
+
+func (r *recordRunner) recordCall(dir, name string, args ...string) {
 	r.calls = append(r.calls, commandCall{
 		dir:  dir,
 		name: name,
 		args: append([]string{}, args...),
 	})
 	r.captureBakeFiles(dir, name, args)
-	return r.err
 }
 
 func (r *recordRunner) RunOutput(_ context.Context, dir, name string, args ...string) ([]byte, error) {

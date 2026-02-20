@@ -14,39 +14,39 @@ import (
 )
 
 func TestRunNodeDisabled(t *testing.T) {
-	var out bytes.Buffer
-	exitCode := Run([]string{"node", "add"}, Dependencies{Out: &out})
-	if exitCode == 0 {
-		t.Fatalf("expected non-zero exit code for disabled node command")
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "command only",
+			args: []string{"node", "add"},
+		},
+		{
+			name: "with global flags",
+			args: []string{"--env", "staging", "--template", "template.yaml", "node", "up"},
+		},
+		{
+			name: "with image override flags",
+			args: []string{
+				"--image-uri", "lambda-image=public.ecr.aws/example/repo:latest",
+				"--image-runtime", "lambda-image=python",
+				"node", "up",
+			},
+		},
 	}
-	if !strings.Contains(out.String(), "node command is disabled") {
-		t.Fatalf("unexpected output: %q", out.String())
-	}
-}
-
-func TestRunNodeDisabledWithGlobalFlags(t *testing.T) {
-	var out bytes.Buffer
-	exitCode := Run([]string{"--env", "staging", "--template", "template.yaml", "node", "up"}, Dependencies{Out: &out})
-	if exitCode == 0 {
-		t.Fatalf("expected non-zero exit code for disabled node command")
-	}
-	if !strings.Contains(out.String(), "node command is disabled") {
-		t.Fatalf("unexpected output: %q", out.String())
-	}
-}
-
-func TestRunNodeDisabledWithImageOverrideFlags(t *testing.T) {
-	var out bytes.Buffer
-	exitCode := Run([]string{
-		"--image-uri", "lambda-image=public.ecr.aws/example/repo:latest",
-		"--image-runtime", "lambda-image=python",
-		"node", "up",
-	}, Dependencies{Out: &out})
-	if exitCode == 0 {
-		t.Fatalf("expected non-zero exit code for disabled node command")
-	}
-	if !strings.Contains(out.String(), "node command is disabled") {
-		t.Fatalf("unexpected output: %q", out.String())
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			var out bytes.Buffer
+			exitCode := Run(tc.args, Dependencies{Out: &out})
+			if exitCode == 0 {
+				t.Fatalf("expected non-zero exit code for disabled node command")
+			}
+			if !strings.Contains(out.String(), "node command is disabled") {
+				t.Fatalf("unexpected output: %q", out.String())
+			}
+		})
 	}
 }
 

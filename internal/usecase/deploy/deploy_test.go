@@ -306,47 +306,50 @@ func TestDeployWorkflowApplyRequiresComposeProject(t *testing.T) {
 	}
 }
 
-func TestDeployWorkflowApplyRequiresEnv(t *testing.T) {
-	ui := &testUI{}
-	runner := &fakeComposeRunner{}
-	workflow := NewDeployWorkflow(nil, nil, ui, runner)
-	workflow.RegistryWaiter = noopRegistryWaiter
-	repoRoot := newTestRepoRoot(t)
-
-	artifactPath := writeTestArtifactManifest(t)
-	err := workflow.Apply(Request{
-		Context: state.Context{
-			ComposeProject: "esb-dev",
-			ProjectDir:     repoRoot,
-			TemplatePath:   filepath.Join(repoRoot, "template.yaml"),
-			Mode:           "docker",
+func TestDeployWorkflowApplyRequiresEnvAndMode(t *testing.T) {
+	tests := []struct {
+		name    string
+		context state.Context
+		wantErr error
+	}{
+		{
+			name: "requires env",
+			context: state.Context{
+				ComposeProject: "esb-dev",
+				Mode:           "docker",
+			},
+			wantErr: errApplyEnvRequired,
 		},
-		ArtifactPath: artifactPath,
-	})
-	if !errors.Is(err, errApplyEnvRequired) {
-		t.Fatalf("expected errApplyEnvRequired, got %v", err)
+		{
+			name: "requires mode",
+			context: state.Context{
+				ComposeProject: "esb-dev",
+				Env:            "dev",
+			},
+			wantErr: errApplyModeRequired,
+		},
 	}
-}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			ui := &testUI{}
+			runner := &fakeComposeRunner{}
+			workflow := NewDeployWorkflow(nil, nil, ui, runner)
+			workflow.RegistryWaiter = noopRegistryWaiter
+			repoRoot := newTestRepoRoot(t)
 
-func TestDeployWorkflowApplyRequiresMode(t *testing.T) {
-	ui := &testUI{}
-	runner := &fakeComposeRunner{}
-	workflow := NewDeployWorkflow(nil, nil, ui, runner)
-	workflow.RegistryWaiter = noopRegistryWaiter
-	repoRoot := newTestRepoRoot(t)
-
-	artifactPath := writeTestArtifactManifest(t)
-	err := workflow.Apply(Request{
-		Context: state.Context{
-			ComposeProject: "esb-dev",
-			ProjectDir:     repoRoot,
-			TemplatePath:   filepath.Join(repoRoot, "template.yaml"),
-			Env:            "dev",
-		},
-		ArtifactPath: artifactPath,
-	})
-	if !errors.Is(err, errApplyModeRequired) {
-		t.Fatalf("expected errApplyModeRequired, got %v", err)
+			artifactPath := writeTestArtifactManifest(t)
+			reqCtx := tc.context
+			reqCtx.ProjectDir = repoRoot
+			reqCtx.TemplatePath = filepath.Join(repoRoot, "template.yaml")
+			err := workflow.Apply(Request{
+				Context:      reqCtx,
+				ArtifactPath: artifactPath,
+			})
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("expected %v, got %v", tc.wantErr, err)
+			}
+		})
 	}
 }
 

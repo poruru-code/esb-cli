@@ -2,7 +2,7 @@ package command
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -27,16 +27,8 @@ func (p *imageRuntimePrompter) Input(_ string, _ []string) (string, error) {
 }
 
 func (p *imageRuntimePrompter) Select(title string, options []string) (string, error) {
-	p.selectCalls = append(p.selectCalls, imageRuntimeSelectCall{
-		title:   title,
-		options: append([]string{}, options...),
-	})
-	if len(p.selectValues) == 0 {
-		return "", fmt.Errorf("no queued selection")
-	}
-	value := p.selectValues[0]
-	p.selectValues = p.selectValues[1:]
-	return value, nil
+	recordSelectCall(&p.selectCalls, title, options)
+	return popQueuedSelection(&p.selectValues, errors.New("no queued selection"))
 }
 
 func (p *imageRuntimePrompter) SelectValue(_ string, _ []interaction.SelectOption) (string, error) {

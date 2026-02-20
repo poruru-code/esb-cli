@@ -83,21 +83,7 @@ func emitConfigMergeSummary(printer ui.UserInterface, configDir string, diff dom
 	if printer == nil {
 		return
 	}
-	rows := []ui.KeyValue{
-		{Key: "Staging config", Value: configDir},
-		{Key: "Routes", Value: domaincfg.FormatCountsLabel(diff.Routes)},
-		{Key: "Functions", Value: domaincfg.FormatCountsLabel(diff.Functions)},
-	}
-	for _, key := range []string{"dynamodb", "s3", "layers"} {
-		counts := diff.Resources[key]
-		if counts.Total == 0 && counts.Added == 0 && counts.Updated == 0 && counts.Removed == 0 {
-			continue
-		}
-		rows = append(rows, ui.KeyValue{
-			Key:   fmt.Sprintf("Resources.%s", key),
-			Value: domaincfg.FormatCountsLabel(counts),
-		})
-	}
+	rows := buildConfigSummaryRows("Staging config", configDir, diff, domaincfg.FormatCountsLabel)
 	printer.Block("🧩", "Config merge summary", rows)
 }
 
@@ -105,10 +91,20 @@ func emitTemplateDeltaSummary(printer ui.UserInterface, configDir string, diff d
 	if printer == nil {
 		return
 	}
+	rows := buildConfigSummaryRows("Template config", configDir, diff, domaincfg.FormatTemplateCounts)
+	printer.Block("🧾", "Template delta summary", rows)
+}
+
+func buildConfigSummaryRows(
+	configLabel string,
+	configDir string,
+	diff domaincfg.Diff,
+	formatCounts func(domaincfg.Counts) string,
+) []ui.KeyValue {
 	rows := []ui.KeyValue{
-		{Key: "Template config", Value: configDir},
-		{Key: "Routes", Value: domaincfg.FormatTemplateCounts(diff.Routes)},
-		{Key: "Functions", Value: domaincfg.FormatTemplateCounts(diff.Functions)},
+		{Key: configLabel, Value: configDir},
+		{Key: "Routes", Value: formatCounts(diff.Routes)},
+		{Key: "Functions", Value: formatCounts(diff.Functions)},
 	}
 	for _, key := range []string{"dynamodb", "s3", "layers"} {
 		counts := diff.Resources[key]
@@ -117,10 +113,10 @@ func emitTemplateDeltaSummary(printer ui.UserInterface, configDir string, diff d
 		}
 		rows = append(rows, ui.KeyValue{
 			Key:   fmt.Sprintf("Resources.%s", key),
-			Value: domaincfg.FormatTemplateCounts(counts),
+			Value: formatCounts(counts),
 		})
 	}
-	printer.Block("🧾", "Template delta summary", rows)
+	return rows
 }
 
 func loadYamlFile(path string) (map[string]any, error) {

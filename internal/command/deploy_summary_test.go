@@ -49,7 +49,7 @@ func TestConfirmDeployInputsNonTTYSkipsPrompt(t *testing.T) {
 
 func TestConfirmDeployInputsProceedAndSummaryContents(t *testing.T) {
 	repoRoot := t.TempDir()
-	setWorkingDirForIsolation(t, repoRoot)
+	setWorkingDir(t, repoRoot)
 	if err := os.WriteFile(filepath.Join(repoRoot, "docker-compose.docker.yml"), []byte("version: '3'\n"), 0o600); err != nil {
 		t.Fatalf("write compose marker: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestConfirmDeployInputsReturnsPromptError(t *testing.T) {
 
 func TestAppendTemplateSummaryLinesDeterministicParams(t *testing.T) {
 	repoRoot := t.TempDir()
-	setWorkingDirForIsolation(t, repoRoot)
+	setWorkingDir(t, repoRoot)
 	if err := os.WriteFile(filepath.Join(repoRoot, "docker-compose.docker.yml"), []byte("version: '3'\n"), 0o600); err != nil {
 		t.Fatalf("write compose marker: %v", err)
 	}
@@ -186,18 +186,4 @@ func writeSummaryTemplate(t *testing.T) string {
 		t.Fatalf("write template: %v", err)
 	}
 	return path
-}
-
-func setWorkingDirForIsolation(t *testing.T, dir string) {
-	t.Helper()
-	prev, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir %s: %v", dir, err)
-	}
-	t.Cleanup(func() {
-		_ = os.Chdir(prev)
-	})
 }

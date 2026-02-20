@@ -183,33 +183,35 @@ func detectDependencyContractViolations(
 	ast.Inspect(file, func(node ast.Node) bool {
 		switch n := node.(type) {
 		case *ast.CallExpr:
-			importPath, symbol, ok := resolveSelector(n.Fun, importAliases)
-			if !ok {
-				return true
-			}
-			if isForbiddenSymbol(contract.forbiddenCalls, importPath, symbol) {
-				line := fset.Position(n.Pos()).Line
-				violations = append(
-					violations,
-					relPath+":"+strconv.Itoa(line)+" -> call "+importPath+"."+symbol,
-				)
-			}
+			violations = appendForbiddenSelectorViolation(
+				violations, fset, relPath, n.Pos(), n.Fun, importAliases, contract.forbiddenCalls, "call",
+			)
 		case *ast.CompositeLit:
-			importPath, symbol, ok := resolveSelector(n.Type, importAliases)
-			if !ok {
-				return true
-			}
-			if isForbiddenSymbol(contract.forbiddenTypeLiterals, importPath, symbol) {
-				line := fset.Position(n.Pos()).Line
-				violations = append(
-					violations,
-					relPath+":"+strconv.Itoa(line)+" -> literal "+importPath+"."+symbol,
-				)
-			}
+			violations = appendForbiddenSelectorViolation(
+				violations, fset, relPath, n.Pos(), n.Type, importAliases, contract.forbiddenTypeLiterals, "literal",
+			)
 		}
 		return true
 	})
 	return violations
+}
+
+func appendForbiddenSelectorViolation(
+	violations []string,
+	fset *token.FileSet,
+	relPath string,
+	pos token.Pos,
+	expr ast.Expr,
+	importAliases map[string]string,
+	forbidden map[string]map[string]struct{},
+	kind string,
+) []string {
+	importPath, symbol, ok := resolveSelector(expr, importAliases)
+	if !ok || !isForbiddenSymbol(forbidden, importPath, symbol) {
+		return violations
+	}
+	line := fset.Position(pos).Line
+	return append(violations, relPath+":"+strconv.Itoa(line)+" -> "+kind+" "+importPath+"."+symbol)
 }
 
 func resolveSelector(expr ast.Expr, importAliases map[string]string) (importPath string, symbol string, ok bool) {

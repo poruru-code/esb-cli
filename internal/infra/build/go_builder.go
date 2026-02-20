@@ -119,7 +119,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 		}
 	}
 
-	composeProject := resolveComposeProjectName(request.ProjectName, cfg.App.Name, request.Env)
+	composeProject := resolveComposeProjectName(request.ProjectName, request.Env)
 	if err := applyBuildEnv(request.Env, composeProject); err != nil {
 		return err
 	}

@@ -44,13 +44,7 @@ func TestApplyBuildEnvDoesNotOverwriteExisting(t *testing.T) {
 }
 
 func TestApplyModeFromRequestSetsLowercaseWhenMissing(t *testing.T) {
-	t.Setenv("ENV_PREFIX", meta.EnvPrefix)
-
-	modeKey, err := envutil.HostEnvKey(constants.HostSuffixMode)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv(modeKey, "")
+	modeKey := setHostModeEnv(t, "")
 
 	if err := applyModeFromRequest(" ConTainerD "); err != nil {
 		t.Fatalf("apply mode from request: %v", err)
@@ -62,13 +56,7 @@ func TestApplyModeFromRequestSetsLowercaseWhenMissing(t *testing.T) {
 }
 
 func TestApplyModeFromRequestKeepsExistingHostMode(t *testing.T) {
-	t.Setenv("ENV_PREFIX", meta.EnvPrefix)
-
-	modeKey, err := envutil.HostEnvKey(constants.HostSuffixMode)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv(modeKey, "docker")
+	modeKey := setHostModeEnv(t, "docker")
 
 	if err := applyModeFromRequest("containerd"); err != nil {
 		t.Fatalf("apply mode from request: %v", err)
@@ -80,13 +68,7 @@ func TestApplyModeFromRequestKeepsExistingHostMode(t *testing.T) {
 }
 
 func TestApplyModeFromRequestNoopWhenModeEmpty(t *testing.T) {
-	t.Setenv("ENV_PREFIX", meta.EnvPrefix)
-
-	modeKey, err := envutil.HostEnvKey(constants.HostSuffixMode)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv(modeKey, "")
+	modeKey := setHostModeEnv(t, "")
 
 	if err := applyModeFromRequest("   "); err != nil {
 		t.Fatalf("apply mode from request: %v", err)
@@ -95,6 +77,17 @@ func TestApplyModeFromRequestNoopWhenModeEmpty(t *testing.T) {
 	if got := getenvOrFail(t, modeKey); got != "" {
 		t.Fatalf("expected empty host mode, got %q", got)
 	}
+}
+
+func setHostModeEnv(t *testing.T, value string) string {
+	t.Setenv("ENV_PREFIX", meta.EnvPrefix)
+
+	modeKey, err := envutil.HostEnvKey(constants.HostSuffixMode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(modeKey, value)
+	return modeKey
 }
 
 func TestFindRepoRoot(t *testing.T) {

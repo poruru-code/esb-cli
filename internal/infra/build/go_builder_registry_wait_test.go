@@ -36,35 +36,31 @@ func TestShouldBypassRegistryProxy(t *testing.T) {
 	}
 }
 
-func TestRegistryWaitHTTPClientBypassesProxyForLocalRegistry(t *testing.T) {
-	t.Setenv("HTTP_PROXY", "http://proxy.example:8080")
-	t.Setenv("http_proxy", "http://proxy.example:8080")
-	t.Setenv("NO_PROXY", "")
-	t.Setenv("no_proxy", "")
-
-	client := registryWaitHTTPClient("registry:5010")
-	transport, ok := client.Transport.(*http.Transport)
-	if !ok {
-		t.Fatalf("unexpected transport type %T", client.Transport)
+func TestRegistryWaitHTTPClientBypassesProxyForLocalRegistries(t *testing.T) {
+	tests := []struct {
+		name     string
+		registry string
+	}{
+		{name: "local registry", registry: "registry:5010"},
+		{name: "ipv6 loopback", registry: "[::1]:5010"},
 	}
-	if transport.Proxy != nil {
-		t.Fatal("expected nil proxy function for local registry")
-	}
-}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("HTTP_PROXY", "http://proxy.example:8080")
+			t.Setenv("http_proxy", "http://proxy.example:8080")
+			t.Setenv("NO_PROXY", "")
+			t.Setenv("no_proxy", "")
 
-func TestRegistryWaitHTTPClientBypassesProxyForIPv6LoopbackRegistry(t *testing.T) {
-	t.Setenv("HTTP_PROXY", "http://proxy.example:8080")
-	t.Setenv("http_proxy", "http://proxy.example:8080")
-	t.Setenv("NO_PROXY", "")
-	t.Setenv("no_proxy", "")
-
-	client := registryWaitHTTPClient("[::1]:5010")
-	transport, ok := client.Transport.(*http.Transport)
-	if !ok {
-		t.Fatalf("unexpected transport type %T", client.Transport)
-	}
-	if transport.Proxy != nil {
-		t.Fatal("expected nil proxy function for IPv6 loopback registry")
+			client := registryWaitHTTPClient(tc.registry)
+			transport, ok := client.Transport.(*http.Transport)
+			if !ok {
+				t.Fatalf("unexpected transport type %T", client.Transport)
+			}
+			if transport.Proxy != nil {
+				t.Fatalf("expected nil proxy function for %s", tc.registry)
+			}
+		})
 	}
 }
 

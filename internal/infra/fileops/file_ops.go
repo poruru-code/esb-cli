@@ -49,27 +49,7 @@ func WriteConfigFile(path, content string) error {
 }
 
 func CopyDir(src, dst string) error {
-	if err := EnsureDir(dst); err != nil {
-		return err
-	}
-	return filepath.WalkDir(src, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(dst, rel)
-		if entry.IsDir() {
-			return EnsureDir(target)
-		}
-		info, err := entry.Info()
-		if err != nil {
-			return err
-		}
-		return copyFileWithMode(path, target, info.Mode())
-	})
+	return walkCopyDir(src, dst, copyFileWithMode)
 }
 
 func CopyFile(src, dst string) error {
@@ -118,6 +98,14 @@ func LinkOrCopyFile(src, dst string, mode fs.FileMode) error {
 }
 
 func CopyDirLinkOrCopy(src, dst string) error {
+	return walkCopyDir(src, dst, LinkOrCopyFile)
+}
+
+func walkCopyDir(
+	src string,
+	dst string,
+	copyFile func(src, dst string, mode fs.FileMode) error,
+) error {
 	if err := EnsureDir(dst); err != nil {
 		return err
 	}
@@ -137,7 +125,7 @@ func CopyDirLinkOrCopy(src, dst string) error {
 		if err != nil {
 			return err
 		}
-		return LinkOrCopyFile(path, target, info.Mode())
+		return copyFile(path, target, info.Mode())
 	})
 }
 

@@ -187,25 +187,38 @@ func TestApplyModeEnv(t *testing.T) {
 		}
 	})
 
-	t.Run("sets lowercase host mode when empty", func(t *testing.T) {
-		t.Setenv("ENV_PREFIX", "ESB")
-		t.Setenv("ESB_MODE", "")
-		if err := applyModeEnv("Docker"); err != nil {
-			t.Fatalf("applyModeEnv() error = %v", err)
+	t.Run("host mode behavior", func(t *testing.T) {
+		tests := []struct {
+			name      string
+			initial   string
+			inputMode string
+			want      string
+		}{
+			{
+				name:      "sets lowercase host mode when empty",
+				initial:   "",
+				inputMode: "Docker",
+				want:      "docker",
+			},
+			{
+				name:      "keeps existing host mode",
+				initial:   "containerd",
+				inputMode: "docker",
+				want:      "containerd",
+			},
 		}
-		if got := os.Getenv("ESB_MODE"); got != "docker" {
-			t.Fatalf("ESB_MODE=%q, want docker", got)
-		}
-	})
-
-	t.Run("keeps existing host mode", func(t *testing.T) {
-		t.Setenv("ENV_PREFIX", "ESB")
-		t.Setenv("ESB_MODE", "containerd")
-		if err := applyModeEnv("docker"); err != nil {
-			t.Fatalf("applyModeEnv() error = %v", err)
-		}
-		if got := os.Getenv("ESB_MODE"); got != "containerd" {
-			t.Fatalf("ESB_MODE=%q, want containerd", got)
+		for _, tc := range tests {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Setenv("ENV_PREFIX", "ESB")
+				t.Setenv("ESB_MODE", tc.initial)
+				if err := applyModeEnv(tc.inputMode); err != nil {
+					t.Fatalf("applyModeEnv() error = %v", err)
+				}
+				if got := os.Getenv("ESB_MODE"); got != tc.want {
+					t.Fatalf("ESB_MODE=%q, want %s", got, tc.want)
+				}
+			})
 		}
 	})
 

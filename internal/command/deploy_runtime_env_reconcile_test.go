@@ -40,22 +40,13 @@ func (p selectOnlyPrompter) SelectValue(_ string, _ []interaction.SelectOption) 
 
 func TestReconcileEnvWithRuntimeKeepsExplicitWhenForceEnabled(t *testing.T) {
 	choice := envChoice{Value: "prod", Source: "flag", Explicit: true}
-	got, err := reconcileEnvWithRuntime(
+	assertReconcileKeepsChoice(
+		t,
 		choice,
 		"esb-dev",
-		"template.yaml",
-		false,
-		nil,
-		fixedEnvResolver{inferred: runtimeinfra.EnvInference{Env: "dev", Source: "container label"}},
+		runtimeinfra.EnvInference{Env: "dev", Source: "container label"},
 		true,
-		nil,
 	)
-	if err != nil {
-		t.Fatalf("reconcile env: %v", err)
-	}
-	if got != choice {
-		t.Fatalf("expected explicit choice to be kept, got %#v", got)
-	}
 }
 
 func TestReconcileEnvWithRuntimeAlignsImplicitChoice(t *testing.T) {
@@ -130,56 +121,48 @@ func TestReconcileEnvWithRuntimeUsesPromptSelection(t *testing.T) {
 	}
 }
 
-func TestApplyEnvSelectionKeepsCurrentAndMarksPromptSource(t *testing.T) {
-	current := envChoice{Value: "prod", Source: "default", Explicit: false}
+func TestApplyEnvSelection(t *testing.T) {
 	inferred := runtimeinfra.EnvInference{Env: "dev", Source: "container label"}
+	tests := []struct {
+		name     string
+		current  envChoice
+		selected string
+		want     envChoice
+	}{
+		{
+			name:     "keeps current and marks prompt source",
+			current:  envChoice{Value: "prod", Source: "default", Explicit: false},
+			selected: "prod",
+			want:     envChoice{Value: "prod", Source: "prompt", Explicit: true},
+		},
+		{
+			name:     "uses inferred when selected",
+			current:  envChoice{Value: "prod", Source: "flag", Explicit: true},
+			selected: "dev",
+			want:     envChoice{Value: "dev", Source: "container label", Explicit: true},
+		},
+	}
 
-	got := applyEnvSelection(current, inferred, "prod")
-	if got.Value != "prod" {
-		t.Fatalf("expected current env to be kept, got %q", got.Value)
-	}
-	if got.Source != "prompt" {
-		t.Fatalf("expected source to switch to prompt, got %q", got.Source)
-	}
-	if !got.Explicit {
-		t.Fatalf("expected explicit=true after manual keep")
-	}
-}
-
-func TestApplyEnvSelectionUsesInferredWhenSelected(t *testing.T) {
-	current := envChoice{Value: "prod", Source: "flag", Explicit: true}
-	inferred := runtimeinfra.EnvInference{Env: "dev", Source: "container label"}
-
-	got := applyEnvSelection(current, inferred, "dev")
-	if got.Value != "dev" {
-		t.Fatalf("expected inferred env, got %q", got.Value)
-	}
-	if got.Source != "container label" {
-		t.Fatalf("expected inferred source, got %q", got.Source)
-	}
-	if !got.Explicit {
-		t.Fatalf("expected explicit=true")
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			got := applyEnvSelection(tc.current, inferred, tc.selected)
+			if got != tc.want {
+				t.Fatalf("applyEnvSelection() = %#v, want %#v", got, tc.want)
+			}
+		})
 	}
 }
 
 func TestReconcileEnvWithRuntimeSkipsWhenProjectEmpty(t *testing.T) {
 	choice := envChoice{Value: "dev", Source: "flag", Explicit: true}
-	got, err := reconcileEnvWithRuntime(
+	assertReconcileKeepsChoice(
+		t,
 		choice,
 		"",
-		"template.yaml",
+		runtimeinfra.EnvInference{Env: "prod", Source: "runtime"},
 		false,
-		nil,
-		fixedEnvResolver{inferred: runtimeinfra.EnvInference{Env: "prod", Source: "runtime"}},
-		false,
-		nil,
 	)
-	if err != nil {
-		t.Fatalf("reconcile env: %v", err)
-	}
-	if got != choice {
-		t.Fatalf("expected choice unchanged, got %#v", got)
-	}
 }
 
 func TestReconcileEnvWithRuntimeResolverErrorWritesWarning(t *testing.T) {
@@ -203,5 +186,31 @@ func TestReconcileEnvWithRuntimeResolverErrorWritesWarning(t *testing.T) {
 	}
 	if !strings.Contains(errOut.String(), "failed to infer running env") {
 		t.Fatalf("expected warning output, got %q", errOut.String())
+	}
+}
+
+func assertReconcileKeepsChoice(
+	t *testing.T,
+	choice envChoice,
+	project string,
+	inferred runtimeinfra.EnvInference,
+	force bool,
+) {
+	t.Helper()
+	got, err := reconcileEnvWithRuntime(
+		choice,
+		project,
+		"template.yaml",
+		false,
+		nil,
+		fixedEnvResolver{inferred: inferred},
+		force,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("reconcile env: %v", err)
+	}
+	if got != choice {
+		t.Fatalf("expected choice unchanged, got %#v", got)
 	}
 }

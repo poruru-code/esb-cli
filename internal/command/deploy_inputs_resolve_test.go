@@ -85,23 +85,7 @@ func TestResolveDeployInputsAllowsTemplateOutsideRepo(t *testing.T) {
 		},
 	}
 	calledPaths := make([]string, 0, 2)
-	deps := Dependencies{
-		RepoResolver: func(path string) (string, error) {
-			calledPaths = append(calledPaths, path)
-			cleaned := filepath.Clean(path)
-			if cleaned == "" || cleaned == "." {
-				return repoRoot, nil
-			}
-			return "", errors.New("unexpected path")
-		},
-		Deploy: DeployDeps{
-			Runtime: DeployRuntimeDeps{
-				DockerClient: func() (compose.DockerClient, error) {
-					return nil, errors.New("docker unavailable")
-				},
-			},
-		},
-	}
+	deps := depsWithRepoContextResolver(repoRoot, &calledPaths)
 
 	inputs, err := resolveDeployInputs(cli, deps)
 	if err != nil {
@@ -147,23 +131,7 @@ func TestResolveDeployInputsAllowsMultipleTemplatesOutsideRepo(t *testing.T) {
 		},
 	}
 	calledPaths := make([]string, 0, 4)
-	deps := Dependencies{
-		RepoResolver: func(path string) (string, error) {
-			calledPaths = append(calledPaths, path)
-			cleaned := filepath.Clean(path)
-			if cleaned == "" || cleaned == "." {
-				return repoRoot, nil
-			}
-			return "", errors.New("unexpected path")
-		},
-		Deploy: DeployDeps{
-			Runtime: DeployRuntimeDeps{
-				DockerClient: func() (compose.DockerClient, error) {
-					return nil, errors.New("docker unavailable")
-				},
-			},
-		},
-	}
+	deps := depsWithRepoContextResolver(repoRoot, &calledPaths)
 
 	inputs, err := resolveDeployInputs(cli, deps)
 	if err != nil {
@@ -422,6 +390,26 @@ Resources:
 	}
 }
 
+func depsWithRepoContextResolver(repoRoot string, calledPaths *[]string) Dependencies {
+	return Dependencies{
+		RepoResolver: func(path string) (string, error) {
+			*calledPaths = append(*calledPaths, path)
+			cleaned := filepath.Clean(path)
+			if cleaned == "" || cleaned == "." {
+				return repoRoot, nil
+			}
+			return "", errors.New("unexpected path")
+		},
+		Deploy: DeployDeps{
+			Runtime: DeployRuntimeDeps{
+				DockerClient: func() (compose.DockerClient, error) {
+					return nil, errors.New("docker unavailable")
+				},
+			},
+		},
+	}
+}
+
 type editFlowPrompter struct {
 	selectValues      []string
 	selectValueValues []string
@@ -433,16 +421,8 @@ func (p *editFlowPrompter) Input(_ string, _ []string) (string, error) {
 }
 
 func (p *editFlowPrompter) Select(title string, options []string) (string, error) {
-	p.selectCalls = append(p.selectCalls, imageRuntimeSelectCall{
-		title:   title,
-		options: append([]string{}, options...),
-	})
-	if len(p.selectValues) == 0 {
-		return "", errors.New("no queued select value")
-	}
-	value := p.selectValues[0]
-	p.selectValues = p.selectValues[1:]
-	return value, nil
+	recordSelectCall(&p.selectCalls, title, options)
+	return popQueuedSelection(&p.selectValues, errors.New("no queued select value"))
 }
 
 func (p *editFlowPrompter) SelectValue(_ string, _ []interaction.SelectOption) (string, error) {
@@ -456,7 +436,7 @@ func (p *editFlowPrompter) SelectValue(_ string, _ []interaction.SelectOption) (
 
 func TestResolveDeployInputsKeepsImageRuntimeAcrossEditLoop(t *testing.T) {
 	repoRoot := t.TempDir()
-	setWorkingDirForIsolation(t, repoRoot)
+	setWorkingDir(t, repoRoot)
 	if err := os.WriteFile(filepath.Join(repoRoot, "docker-compose.docker.yml"), []byte("version: '3'\n"), 0o600); err != nil {
 		t.Fatalf("write compose marker: %v", err)
 	}
