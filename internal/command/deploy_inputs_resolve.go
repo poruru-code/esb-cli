@@ -265,7 +265,7 @@ func (r deployInputsResolver) resolveMode(
 	case flagMode != "":
 		return flagMode, nil
 	default:
-		return resolveDeployMode("", r.isTTY, r.prompter, prevMode, r.errOut)
+		return resolveDeployMode(r.isTTY, r.prompter, prevMode, r.errOut)
 	}
 }
 

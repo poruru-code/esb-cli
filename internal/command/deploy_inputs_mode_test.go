@@ -36,7 +36,7 @@ func TestResolveDeployModeWritesWarningToConfiguredErrWriter(t *testing.T) {
 	prompter := &modeSelectPrompter{values: []string{"", "containerd"}}
 	var errOut bytes.Buffer
 
-	got, err := resolveDeployMode("", true, prompter, "docker", &errOut)
+	got, err := resolveDeployMode(true, prompter, "docker", &errOut)
 	if err != nil {
 		t.Fatalf("resolve deploy mode: %v", err)
 	}

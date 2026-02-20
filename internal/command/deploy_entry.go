@@ -259,22 +259,7 @@ func (c *deployCommand) runGeneratePhase(
 	templateCount := len(inputs.Templates)
 	for idx, tpl := range inputs.Templates {
 		c.renderGeneratePlanBlock(inputs, tpl, idx, templateCount, runConfig.buildImages)
-		request := deploy.Request{
-			Context:        deployTemplateStateContext(inputs, tpl),
-			OutputDir:      tpl.OutputDir,
-			Parameters:     tpl.Parameters,
-			ImageSources:   tpl.ImageSources,
-			ImageRuntimes:  tpl.ImageRuntimes,
-			Tag:            runConfig.tag,
-			NoCache:        flags.NoCache,
-			NoDeps:         runConfig.noDeps,
-			Verbose:        flags.Verbose,
-			ComposeFiles:   inputs.ComposeFiles,
-			BuildOnly:      true,
-			BuildImages:    boolPtr(runConfig.buildImages),
-			BundleManifest: flags.Bundle,
-			Emoji:          c.emojiEnabled,
-		}
+		request := c.newGenerateRequest(inputs, tpl, flags, runConfig)
 		if err := workflow.Run(request); err != nil {
 			return fmt.Errorf("deploy workflow (%s): %w", tpl.TemplatePath, err)
 		}
@@ -342,21 +327,60 @@ func (c *deployCommand) runApplyPhase(
 	manifestPath string,
 ) error {
 	applyTemplate := inputs.Templates[0]
-	applyReq := deploy.Request{
-		Context:       deployTemplateStateContext(inputs, applyTemplate),
-		ArtifactPath:  manifestPath,
-		SecretEnvPath: flags.SecretEnv,
-		OutputDir:     applyTemplate.OutputDir,
-		Tag:           runConfig.tag,
-		NoDeps:        runConfig.noDeps,
-		Verbose:       flags.Verbose,
-		ComposeFiles:  inputs.ComposeFiles,
-		BuildOnly:     false,
-	}
+	applyReq := c.newApplyRequest(inputs, applyTemplate, flags, runConfig, manifestPath)
 	if err := workflow.Apply(applyReq); err != nil {
 		return fmt.Errorf("deploy apply (%s): %w", applyTemplate.TemplatePath, err)
 	}
 	return nil
+}
+
+func (c *deployCommand) newGenerateRequest(
+	inputs deployInputs,
+	tpl deployTemplateInput,
+	flags DeployCmd,
+	runConfig deployRunConfig,
+) deploy.Request {
+	request := buildDeployRequestCommon(inputs, tpl, flags, runConfig)
+	request.OutputDir = tpl.OutputDir
+	request.Parameters = tpl.Parameters
+	request.ImageSources = tpl.ImageSources
+	request.ImageRuntimes = tpl.ImageRuntimes
+	request.NoCache = flags.NoCache
+	request.BuildOnly = true
+	request.BuildImages = boolPtr(runConfig.buildImages)
+	request.BundleManifest = flags.Bundle
+	request.Emoji = c.emojiEnabled
+	return request
+}
+
+func (c *deployCommand) newApplyRequest(
+	inputs deployInputs,
+	tpl deployTemplateInput,
+	flags DeployCmd,
+	runConfig deployRunConfig,
+	manifestPath string,
+) deploy.Request {
+	request := buildDeployRequestCommon(inputs, tpl, flags, runConfig)
+	request.ArtifactPath = manifestPath
+	request.SecretEnvPath = flags.SecretEnv
+	request.OutputDir = tpl.OutputDir
+	request.BuildOnly = false
+	return request
+}
+
+func buildDeployRequestCommon(
+	inputs deployInputs,
+	tpl deployTemplateInput,
+	flags DeployCmd,
+	runConfig deployRunConfig,
+) deploy.Request {
+	return deploy.Request{
+		Context:      deployTemplateStateContext(inputs, tpl),
+		Tag:          runConfig.tag,
+		NoDeps:       runConfig.noDeps,
+		Verbose:      flags.Verbose,
+		ComposeFiles: inputs.ComposeFiles,
+	}
 }
 
 func deployTemplateStateContext(
