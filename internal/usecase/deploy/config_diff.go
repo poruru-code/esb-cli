@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	domaincfg "github.com/poruru-code/esb/cli/internal/domain/config"
-	"github.com/poruru-code/esb/cli/internal/infra/ui"
+	domaincfg "github.com/poruru-code/esb-cli/internal/domain/config"
+	"github.com/poruru-code/esb-cli/internal/infra/ui"
 	"github.com/poruru-code/esb/pkg/yamlshape"
 	"gopkg.in/yaml.v3"
 )

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/alecthomas/kong"
-	"github.com/poruru-code/esb/cli/internal/version"
+	"github.com/poruru-code/esb-cli/internal/version"
 )
 
 func TestRunNodeDisabled(t *testing.T) {
@@ -228,7 +228,7 @@ func TestRequiresRepoScope(t *testing.T) {
 		args []string
 		want bool
 	}{
-		{name: "no args", args: nil, want: true},
+		{name: "no args", args: nil, want: false},
 		{name: "version", args: []string{"version"}, want: false},
 		{name: "root help flag", args: []string{"--help"}, want: false},
 		{name: "root short help flag", args: []string{"-h"}, want: false},

@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poruru-code/esb/cli/internal/constants"
-	"github.com/poruru-code/esb/cli/internal/domain/state"
-	"github.com/poruru-code/esb/cli/internal/infra/envutil"
-	"github.com/poruru-code/esb/cli/internal/infra/staging"
-	"github.com/poruru-code/esb/cli/internal/meta"
+	"github.com/poruru-code/esb-cli/internal/constants"
+	"github.com/poruru-code/esb-cli/internal/domain/state"
+	"github.com/poruru-code/esb-cli/internal/infra/envutil"
+	"github.com/poruru-code/esb-cli/internal/infra/staging"
+	"github.com/poruru-code/esb-cli/internal/meta"
 )
 
 func TestApplyRuntimeEnvRequiresResolverWhenProjectRootUnknown(t *testing.T) {

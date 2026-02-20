@@ -6,7 +6,7 @@ package sam
 import (
 	"fmt"
 
-	"github.com/poruru-code/esb/cli/internal/domain/value"
+	"github.com/poruru-code/esb-cli/internal/domain/value"
 )
 
 func (r *IntrinsicResolver) GetConditionResult(name string) bool {

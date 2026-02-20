@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/poruru-code/esb/cli/internal/constants"
-	"github.com/poruru-code/esb/cli/internal/infra/envutil"
+	"github.com/poruru-code/esb-cli/internal/constants"
+	"github.com/poruru-code/esb-cli/internal/infra/envutil"
 )
 
 type registryConfig struct {

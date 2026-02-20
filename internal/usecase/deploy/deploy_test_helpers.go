@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/poruru-code/esb/cli/internal/domain/state"
-	"github.com/poruru-code/esb/cli/internal/infra/build"
-	"github.com/poruru-code/esb/cli/internal/infra/ui"
+	"github.com/poruru-code/esb-cli/internal/domain/state"
+	"github.com/poruru-code/esb-cli/internal/infra/build"
+	"github.com/poruru-code/esb-cli/internal/infra/ui"
 )
 
 type recordBuilder struct {

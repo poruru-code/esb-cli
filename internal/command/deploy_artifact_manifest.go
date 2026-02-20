@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	domaincfg "github.com/poruru-code/esb/cli/internal/domain/config"
-	"github.com/poruru-code/esb/cli/internal/meta"
-	"github.com/poruru-code/esb/cli/internal/version"
+	domaincfg "github.com/poruru-code/esb-cli/internal/domain/config"
+	"github.com/poruru-code/esb-cli/internal/meta"
+	"github.com/poruru-code/esb-cli/internal/version"
 	"github.com/poruru-code/esb/pkg/artifactcore"
 )
 

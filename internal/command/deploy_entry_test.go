@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	domaincfg "github.com/poruru-code/esb/cli/internal/domain/config"
-	"github.com/poruru-code/esb/cli/internal/domain/state"
-	"github.com/poruru-code/esb/cli/internal/infra/build"
-	"github.com/poruru-code/esb/cli/internal/infra/ui"
+	domaincfg "github.com/poruru-code/esb-cli/internal/domain/config"
+	"github.com/poruru-code/esb-cli/internal/domain/state"
+	"github.com/poruru-code/esb-cli/internal/infra/build"
+	"github.com/poruru-code/esb-cli/internal/infra/ui"
 	"github.com/poruru-code/esb/pkg/artifactcore"
 )
 

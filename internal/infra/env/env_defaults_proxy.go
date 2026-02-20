@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/poruru-code/esb/cli/internal/constants"
-	"github.com/poruru-code/esb/cli/internal/infra/envutil"
+	"github.com/poruru-code/esb-cli/internal/constants"
+	"github.com/poruru-code/esb-cli/internal/infra/envutil"
 )
 
 // applyProxyDefaults ensures that proxy-related environment variables are consistent

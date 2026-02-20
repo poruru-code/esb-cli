@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/poruru-code/esb/cli/internal/constants"
-	"github.com/poruru-code/esb/cli/internal/domain/state"
-	"github.com/poruru-code/esb/cli/internal/infra/envutil"
-	"github.com/poruru-code/esb/cli/internal/infra/staging"
+	"github.com/poruru-code/esb-cli/internal/constants"
+	"github.com/poruru-code/esb-cli/internal/domain/state"
+	"github.com/poruru-code/esb-cli/internal/infra/envutil"
+	"github.com/poruru-code/esb-cli/internal/infra/staging"
 )
 
 // applyConfigDirEnv sets the CONFIG_DIR environment variable

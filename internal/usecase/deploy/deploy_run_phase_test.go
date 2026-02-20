@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/poruru-code/esb/cli/internal/domain/state"
+	"github.com/poruru-code/esb-cli/internal/domain/state"
 	"github.com/poruru-code/esb/pkg/artifactcore"
 )
 

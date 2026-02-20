@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/poruru-code/esb/cli/internal/meta"
+	"github.com/poruru-code/esb-cli/internal/meta"
 	"github.com/poruru-code/esb/pkg/artifactcore"
 )
 

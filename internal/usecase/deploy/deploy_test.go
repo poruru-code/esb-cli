@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poruru-code/esb/cli/internal/constants"
-	"github.com/poruru-code/esb/cli/internal/domain/state"
-	infradeploy "github.com/poruru-code/esb/cli/internal/infra/deploy"
-	"github.com/poruru-code/esb/cli/internal/infra/envutil"
-	"github.com/poruru-code/esb/cli/internal/infra/staging"
+	"github.com/poruru-code/esb-cli/internal/constants"
+	"github.com/poruru-code/esb-cli/internal/domain/state"
+	infradeploy "github.com/poruru-code/esb-cli/internal/infra/deploy"
+	"github.com/poruru-code/esb-cli/internal/infra/envutil"
+	"github.com/poruru-code/esb-cli/internal/infra/staging"
 	"github.com/poruru-code/esb/pkg/artifactcore"
 )
 

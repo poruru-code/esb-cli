@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poruru-code/esb/cli/internal/domain/manifest"
-	"github.com/poruru-code/esb/cli/internal/meta"
+	"github.com/poruru-code/esb-cli/internal/domain/manifest"
+	"github.com/poruru-code/esb-cli/internal/meta"
 	"gopkg.in/yaml.v3"
 )
 

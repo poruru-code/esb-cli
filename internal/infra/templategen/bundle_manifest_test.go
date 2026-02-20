@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poruru-code/esb/cli/internal/domain/template"
-	"github.com/poruru-code/esb/cli/internal/meta"
+	"github.com/poruru-code/esb-cli/internal/domain/template"
+	"github.com/poruru-code/esb-cli/internal/meta"
 )
 
 type manifestImageMeta struct {
