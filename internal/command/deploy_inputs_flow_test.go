@@ -6,6 +6,7 @@ package command
 import (
 	"testing"
 
+	"github.com/poruru-code/esb-cli/internal/constants"
 	runtimeinfra "github.com/poruru-code/esb-cli/internal/infra/runtime"
 )
 
@@ -101,6 +102,144 @@ func TestResolveDeployOutputInteractiveUsesPreviousWithoutPrompt(t *testing.T) {
 
 func TestResolveDeployOutputInteractiveUsesDefaultWithoutPrompt(t *testing.T) {
 	assertResolveDeployOutputNoPrompt(t, "", "")
+}
+
+func TestResolveProjectValue(t *testing.T) {
+	tests := []struct {
+		name         string
+		flagProject  string
+		envProject   string
+		hostPrefix   string
+		hostProject  string
+		wantValue    string
+		wantSource   string
+		wantExplicit bool
+	}{
+		{
+			name:         "flag has highest priority",
+			flagProject:  "from-flag",
+			envProject:   "from-env",
+			hostPrefix:   "ESB",
+			hostProject:  "from-host",
+			wantValue:    "from-flag",
+			wantSource:   "flag",
+			wantExplicit: true,
+		},
+		{
+			name:         "env is used when flag is empty",
+			envProject:   "from-env",
+			hostPrefix:   "ESB",
+			hostProject:  "from-host",
+			wantValue:    "from-env",
+			wantSource:   "env",
+			wantExplicit: true,
+		},
+		{
+			name:         "host env fallback",
+			hostPrefix:   "ESB",
+			hostProject:  "from-host",
+			wantValue:    "from-host",
+			wantSource:   "host",
+			wantExplicit: true,
+		},
+		{
+			name:         "returns non-explicit when nothing is set",
+			wantValue:    "",
+			wantSource:   "",
+			wantExplicit: false,
+		},
+	}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(constants.EnvProjectName, tc.envProject)
+			t.Setenv("ENV_PREFIX", tc.hostPrefix)
+			if tc.hostPrefix != "" {
+				t.Setenv(tc.hostPrefix+"_"+constants.HostSuffixProject, tc.hostProject)
+			}
+			value, source, explicit := resolveProjectValue(tc.flagProject)
+			if value != tc.wantValue || source != tc.wantSource || explicit != tc.wantExplicit {
+				t.Fatalf(
+					"unexpected result: got=(%q,%q,%v) want=(%q,%q,%v)",
+					value,
+					source,
+					explicit,
+					tc.wantValue,
+					tc.wantSource,
+					tc.wantExplicit,
+				)
+			}
+		})
+	}
+}
+
+func TestResolveComposeProjectValue(t *testing.T) {
+	tests := []struct {
+		name          string
+		projectValue  string
+		projectSource string
+		stack         deployTargetStack
+		flagEnv       string
+		prevEnv       string
+		wantProject   string
+		wantSource    string
+	}{
+		{
+			name:          "explicit project",
+			projectValue:  "esb-explicit",
+			projectSource: "flag",
+			stack:         deployTargetStack{Project: "esb-stack", Env: "dev"},
+			flagEnv:       "prod",
+			prevEnv:       "staging",
+			wantProject:   "esb-explicit",
+			wantSource:    "flag",
+		},
+		{
+			name:        "stack project",
+			stack:       deployTargetStack{Project: "esb-stack", Env: "dev"},
+			flagEnv:     "prod",
+			prevEnv:     "staging",
+			wantProject: "esb-stack",
+			wantSource:  "stack",
+		},
+		{
+			name:        "default from flag env",
+			stack:       deployTargetStack{},
+			flagEnv:     "prod",
+			prevEnv:     "staging",
+			wantProject: "esb-prod",
+			wantSource:  "default",
+		},
+		{
+			name:        "default from previous env",
+			stack:       deployTargetStack{},
+			flagEnv:     "",
+			prevEnv:     "staging",
+			wantProject: "esb-staging",
+			wantSource:  "default",
+		},
+	}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			gotProject, gotSource := resolveComposeProjectValue(
+				tc.projectValue,
+				tc.projectSource,
+				tc.stack,
+				tc.flagEnv,
+				tc.prevEnv,
+			)
+			if gotProject != tc.wantProject || gotSource != tc.wantSource {
+				t.Fatalf(
+					"unexpected project/source: got=(%q,%q) want=(%q,%q)",
+					gotProject,
+					gotSource,
+					tc.wantProject,
+					tc.wantSource,
+				)
+			}
+		})
+	}
 }
 
 func mustResolveDeployEnvFromStack(
