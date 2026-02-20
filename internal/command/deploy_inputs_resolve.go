@@ -38,79 +38,118 @@ type deployRuntimeContext struct {
 	modeInferenceErr error
 }
 
+type deployTemplateOverrideInputs struct {
+	imageSources  map[string]string
+	imageRuntimes map[string]string
+}
+
+type templateInputResolveContext struct {
+	deployFlags    DeployCmd
+	repoRoot       string
+	templatePaths  []string
+	prevTemplates  map[string]deployTemplateInput
+	outputKeyCount map[string]int
+	envChanged     bool
+	overrides      deployTemplateOverrideInputs
+}
+
 func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
 	resolver := newDeployInputsResolver(deps)
 
 	var last deployInputs
 	for {
-		runtimeCtx, err := resolver.resolveRuntimeContext(cli, last)
+		inputs, err := resolver.resolveInputIteration(cli, last)
 		if err != nil {
 			return deployInputs{}, err
 		}
-
-		templatePaths, err := resolveDeployTemplates(
-			cli.Template,
-			resolver.isTTY,
-			resolver.prompter,
-			previousTemplatePath(last),
-			resolver.errOut,
-		)
+		accepted, err := resolver.confirmAndPersistResolvedInputs(cli.Deploy.NoSave, inputs)
 		if err != nil {
 			return deployInputs{}, err
 		}
-
-		storedDefaults := loadDeployDefaults(runtimeCtx.repoRoot, templatePaths[0])
-
-		selectedEnv, err := resolver.resolveSelectedEnv(cli, runtimeCtx, templatePaths[0])
-		if err != nil {
-			return deployInputs{}, err
-		}
-		envChanged := selectedEnv.Value != runtimeCtx.prevEnv
-
-		mode, err := resolver.resolveMode(cli, runtimeCtx, storedDefaults, last)
-		if err != nil {
-			return deployInputs{}, err
-		}
-
-		templateInputs, err := resolver.resolveTemplateInputs(
-			cli,
-			last,
-			runtimeCtx.repoRoot,
-			templatePaths,
-			envChanged,
-		)
-		if err != nil {
-			return deployInputs{}, err
-		}
-
-		inputs := deployInputs{
-			ProjectDir:    runtimeCtx.repoRoot,
-			TargetStack:   runtimeCtx.selectedStack.Name,
-			Env:           selectedEnv.Value,
-			EnvSource:     selectedEnv.Source,
-			Mode:          mode,
-			Templates:     templateInputs,
-			Project:       runtimeCtx.composeProject,
-			ProjectSource: runtimeCtx.projectSource,
-			ComposeFiles:  normalizeComposeFiles(cli.Deploy.ComposeFiles, runtimeCtx.repoRoot),
-		}
-
-		confirmed, err := confirmDeployInputs(inputs, resolver.isTTY, resolver.prompter)
-		if err != nil {
-			return deployInputs{}, err
-		}
-		if confirmed {
-			if !cli.Deploy.NoSave {
-				for _, tpl := range templateInputs {
-					if err := saveDeployDefaults(runtimeCtx.repoRoot, tpl, inputs); err != nil {
-						writeWarningf(resolver.errOut, "Warning: failed to save deploy defaults: %v\n", err)
-					}
-				}
-			}
+		if accepted {
 			return inputs, nil
 		}
 		last = inputs
 	}
+}
+
+func (r deployInputsResolver) resolveInputIteration(
+	cli CLI,
+	last deployInputs,
+) (deployInputs, error) {
+	runtimeCtx, err := r.resolveRuntimeContext(cli, last)
+	if err != nil {
+		return deployInputs{}, err
+	}
+
+	templatePaths, err := resolveDeployTemplates(
+		cli.Template,
+		r.isTTY,
+		r.prompter,
+		previousTemplatePath(last),
+		r.errOut,
+	)
+	if err != nil {
+		return deployInputs{}, err
+	}
+
+	storedDefaults := loadDeployDefaults(runtimeCtx.repoRoot, templatePaths[0])
+
+	selectedEnv, err := r.resolveSelectedEnv(cli, runtimeCtx, templatePaths[0])
+	if err != nil {
+		return deployInputs{}, err
+	}
+	envChanged := selectedEnv.Value != runtimeCtx.prevEnv
+
+	mode, err := r.resolveMode(cli, runtimeCtx, storedDefaults, last)
+	if err != nil {
+		return deployInputs{}, err
+	}
+
+	templateInputs, err := r.resolveTemplateInputs(
+		cli,
+		last,
+		runtimeCtx.repoRoot,
+		templatePaths,
+		envChanged,
+	)
+	if err != nil {
+		return deployInputs{}, err
+	}
+
+	return deployInputs{
+		ProjectDir:    runtimeCtx.repoRoot,
+		TargetStack:   runtimeCtx.selectedStack.Name,
+		Env:           selectedEnv.Value,
+		EnvSource:     selectedEnv.Source,
+		Mode:          mode,
+		Templates:     templateInputs,
+		Project:       runtimeCtx.composeProject,
+		ProjectSource: runtimeCtx.projectSource,
+		ComposeFiles:  normalizeComposeFiles(cli.Deploy.ComposeFiles, runtimeCtx.repoRoot),
+	}, nil
+}
+
+func (r deployInputsResolver) confirmAndPersistResolvedInputs(
+	noSave bool,
+	inputs deployInputs,
+) (bool, error) {
+	confirmed, err := confirmDeployInputs(inputs, r.isTTY, r.prompter)
+	if err != nil {
+		return false, err
+	}
+	if !confirmed {
+		return false, nil
+	}
+	if noSave {
+		return true, nil
+	}
+	for _, tpl := range inputs.Templates {
+		if err := saveDeployDefaults(inputs.ProjectDir, tpl, inputs); err != nil {
+			writeWarningf(r.errOut, "Warning: failed to save deploy defaults: %v\n", err)
+		}
+	}
+	return true, nil
 }
 
 func newDeployInputsResolver(deps Dependencies) deployInputsResolver {
@@ -279,88 +318,169 @@ func (r deployInputsResolver) resolveTemplateInputs(
 	if len(templatePaths) > 1 && strings.TrimSpace(cli.Deploy.Output) != "" {
 		return nil, errMultipleTemplateOutput
 	}
-	cliImageSources, err := parseFunctionOverrideFlag(cli.Deploy.ImageURI, "--image-uri")
+	overrides, err := parseDeployTemplateOverrideInputs(cli.Deploy)
 	if err != nil {
 		return nil, err
 	}
-	cliImageRuntimes, err := parseFunctionOverrideFlag(cli.Deploy.ImageRuntime, "--image-runtime")
-	if err != nil {
-		return nil, err
+	ctx := templateInputResolveContext{
+		deployFlags:    cli.Deploy,
+		repoRoot:       repoRoot,
+		templatePaths:  templatePaths,
+		prevTemplates:  buildPreviousTemplateInputMap(last.Templates),
+		outputKeyCount: map[string]int{},
+		envChanged:     envChanged,
+		overrides:      overrides,
 	}
-
-	prevTemplates := map[string]deployTemplateInput{}
-	for _, tpl := range last.Templates {
-		prevTemplates[tpl.TemplatePath] = tpl
-	}
-	outputKeyCounts := map[string]int{}
 	templateInputs := make([]deployTemplateInput, 0, len(templatePaths))
 	for _, templatePath := range templatePaths {
-		storedTemplate := loadDeployDefaults(repoRoot, templatePath)
-		outputDir := ""
-		if len(templatePaths) == 1 {
-			prevOutput := ""
-			if prev, ok := prevTemplates[templatePath]; ok && strings.TrimSpace(prev.OutputDir) != "" {
-				prevOutput = prev.OutputDir
-			} else if strings.TrimSpace(storedTemplate.OutputDir) != "" {
-				prevOutput = storedTemplate.OutputDir
-			}
-			if envChanged && strings.TrimSpace(cli.Deploy.Output) == "" {
-				prevOutput = ""
-			}
-			outputDir, err = resolveDeployOutput(
-				cli.Deploy.Output,
-				r.isTTY,
-				r.prompter,
-				prevOutput,
-			)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			outputDir = deriveMultiTemplateOutputDir(templatePath, outputKeyCounts)
-		}
-
-		prevParams := storedTemplate.Params
-		if prev, ok := prevTemplates[templatePath]; ok && len(prev.Parameters) > 0 {
-			prevParams = prev.Parameters
-		}
-		params, err := promptTemplateParameters(templatePath, r.isTTY, r.prompter, prevParams, r.errOut)
+		templateInput, err := r.resolveSingleTemplateInput(templatePath, ctx)
 		if err != nil {
 			return nil, err
 		}
-		imageFunctionNames, err := discoverImageFunctionNames(templatePath, params)
-		if err != nil {
-			return nil, err
-		}
-		templateImageSources := filterFunctionOverrides(cliImageSources, imageFunctionNames)
-		templateImageRuntimeOverrides := filterFunctionOverrides(cliImageRuntimes, imageFunctionNames)
-
-		prevImageRuntimes := storedTemplate.ImageRuntimes
-		if prev, ok := prevTemplates[templatePath]; ok && len(prev.ImageRuntimes) > 0 {
-			prevImageRuntimes = prev.ImageRuntimes
-		}
-		imageRuntimes, err := promptTemplateImageRuntimes(
-			templatePath,
-			params,
-			r.isTTY,
-			r.prompter,
-			prevImageRuntimes,
-			templateImageRuntimeOverrides,
-			r.errOut,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		templateInputs = append(templateInputs, deployTemplateInput{
-			TemplatePath:  templatePath,
-			OutputDir:     outputDir,
-			Parameters:    params,
-			ImageSources:  templateImageSources,
-			ImageRuntimes: imageRuntimes,
-		})
+		templateInputs = append(templateInputs, templateInput)
 	}
 	return templateInputs, nil
+}
+
+func parseDeployTemplateOverrideInputs(deployFlags DeployCmd) (deployTemplateOverrideInputs, error) {
+	imageSources, err := parseFunctionOverrideFlag(deployFlags.ImageURI, "--image-uri")
+	if err != nil {
+		return deployTemplateOverrideInputs{}, err
+	}
+	imageRuntimes, err := parseFunctionOverrideFlag(deployFlags.ImageRuntime, "--image-runtime")
+	if err != nil {
+		return deployTemplateOverrideInputs{}, err
+	}
+	return deployTemplateOverrideInputs{
+		imageSources:  imageSources,
+		imageRuntimes: imageRuntimes,
+	}, nil
+}
+
+func buildPreviousTemplateInputMap(
+	templates []deployTemplateInput,
+) map[string]deployTemplateInput {
+	prevTemplates := map[string]deployTemplateInput{}
+	for _, tpl := range templates {
+		prevTemplates[tpl.TemplatePath] = tpl
+	}
+	return prevTemplates
+}
+
+func (r deployInputsResolver) resolveSingleTemplateInput(
+	templatePath string,
+	ctx templateInputResolveContext,
+) (deployTemplateInput, error) {
+	storedTemplate := loadDeployDefaults(ctx.repoRoot, templatePath)
+	outputDir, err := r.resolveTemplateOutputDir(templatePath, ctx, storedTemplate)
+	if err != nil {
+		return deployTemplateInput{}, err
+	}
+
+	prevParams := resolvePreviousTemplateParameters(
+		templatePath,
+		ctx.prevTemplates,
+		storedTemplate.Params,
+	)
+	params, err := promptTemplateParameters(templatePath, r.isTTY, r.prompter, prevParams, r.errOut)
+	if err != nil {
+		return deployTemplateInput{}, err
+	}
+	imageFunctionNames, err := discoverImageFunctionNames(templatePath, params)
+	if err != nil {
+		return deployTemplateInput{}, err
+	}
+	templateImageSources := filterFunctionOverrides(ctx.overrides.imageSources, imageFunctionNames)
+	templateImageRuntimeOverrides := filterFunctionOverrides(
+		ctx.overrides.imageRuntimes,
+		imageFunctionNames,
+	)
+
+	prevImageRuntimes := resolvePreviousTemplateImageRuntimes(
+		templatePath,
+		ctx.prevTemplates,
+		storedTemplate.ImageRuntimes,
+	)
+	imageRuntimes, err := promptTemplateImageRuntimes(
+		templatePath,
+		params,
+		r.isTTY,
+		r.prompter,
+		prevImageRuntimes,
+		templateImageRuntimeOverrides,
+		r.errOut,
+	)
+	if err != nil {
+		return deployTemplateInput{}, err
+	}
+
+	return deployTemplateInput{
+		TemplatePath:  templatePath,
+		OutputDir:     outputDir,
+		Parameters:    params,
+		ImageSources:  templateImageSources,
+		ImageRuntimes: imageRuntimes,
+	}, nil
+}
+
+func (r deployInputsResolver) resolveTemplateOutputDir(
+	templatePath string,
+	ctx templateInputResolveContext,
+	storedTemplate storedDeployDefaults,
+) (string, error) {
+	if len(ctx.templatePaths) > 1 {
+		return deriveMultiTemplateOutputDir(templatePath, ctx.outputKeyCount), nil
+	}
+	prevOutput := resolvePreviousTemplateOutput(
+		templatePath,
+		ctx.prevTemplates,
+		storedTemplate.OutputDir,
+	)
+	if ctx.envChanged && strings.TrimSpace(ctx.deployFlags.Output) == "" {
+		prevOutput = ""
+	}
+	return resolveDeployOutput(
+		ctx.deployFlags.Output,
+		r.isTTY,
+		r.prompter,
+		prevOutput,
+	)
+}
+
+func resolvePreviousTemplateOutput(
+	templatePath string,
+	prevTemplates map[string]deployTemplateInput,
+	storedOutput string,
+) string {
+	if prev, ok := prevTemplates[templatePath]; ok && strings.TrimSpace(prev.OutputDir) != "" {
+		return prev.OutputDir
+	}
+	if strings.TrimSpace(storedOutput) != "" {
+		return storedOutput
+	}
+	return ""
+}
+
+func resolvePreviousTemplateParameters(
+	templatePath string,
+	prevTemplates map[string]deployTemplateInput,
+	storedParams map[string]string,
+) map[string]string {
+	if prev, ok := prevTemplates[templatePath]; ok && len(prev.Parameters) > 0 {
+		return prev.Parameters
+	}
+	return storedParams
+}
+
+func resolvePreviousTemplateImageRuntimes(
+	templatePath string,
+	prevTemplates map[string]deployTemplateInput,
+	storedImageRuntimes map[string]string,
+) map[string]string {
+	if prev, ok := prevTemplates[templatePath]; ok && len(prev.ImageRuntimes) > 0 {
+		return prev.ImageRuntimes
+	}
+	return storedImageRuntimes
 }
 
 func resolveProjectValue(flagProject string) (string, string, bool) {
