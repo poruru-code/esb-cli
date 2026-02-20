@@ -70,7 +70,7 @@ func ResolveComposeFilesFromProject(ctx context.Context, client DockerClient, pr
 			continue
 		}
 		workingDir := strings.TrimSpace(labels[ComposeWorkingDirLabel])
-		files := normalizeComposeFilePaths(parseComposeFiles(raw), workingDir)
+		files := NormalizeComposeFilePaths(parseComposeFiles(raw), workingDir)
 		if len(files) == 0 {
 			continue
 		}
@@ -130,7 +130,9 @@ func parseComposeFiles(value string) []string {
 	return out
 }
 
-func normalizeComposeFilePaths(files []string, workingDir string) []string {
+// NormalizeComposeFilePaths normalizes compose file paths with optional
+// working-directory resolution and stable deduplication.
+func NormalizeComposeFilePaths(files []string, workingDir string) []string {
 	out := make([]string, 0, len(files))
 	seen := map[string]struct{}{}
 	for _, file := range files {
