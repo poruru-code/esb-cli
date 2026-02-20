@@ -44,3 +44,23 @@ run = "go test ./..."
 [tasks.dev]
 description = "Rebuild and install esb automatically on file changes"
 run = "air"
+
+[tasks.audit_deadcode]
+description = "Report unreachable functions from the esb CLI entrypoint"
+run = "go run golang.org/x/tools/cmd/deadcode@latest -test ./cmd/esb"
+
+[tasks.audit_dupl]
+description = "Run duplicate-code audits (prod blocking + test report)"
+run = ["mise run audit_dupl_prod", "mise run audit_dupl_tests"]
+
+[tasks.audit_dupl_prod]
+description = "Detect duplicate code in production (non-test) files"
+run = "golangci-lint run ./... --config .golangci.dupl.prod.yml"
+
+[tasks.audit_dupl_tests]
+description = "Report duplicate code in test files (non-blocking)"
+run = "golangci-lint run ./... --config .golangci.dupl.yml || true"
+
+[tasks.audit_refactor]
+description = "Run deadcode and duplicate-code audits"
+run = ["mise run audit_deadcode", "mise run audit_dupl"]

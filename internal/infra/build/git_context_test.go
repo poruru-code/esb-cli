@@ -89,45 +89,52 @@ func TestResolveGitContextWorktreeGitDirFile(t *testing.T) {
 	}
 }
 
-func TestResolveGitContextMissingHead(t *testing.T) {
-	root := t.TempDir()
-	gitDir := filepath.Join(root, ".git")
-	if err := writeTestFileWithDirs(gitDir, "objects/placeholder", ""); err != nil {
-		t.Fatal(err)
-	}
-
-	runner := gitRunnerStub{
-		outputs: map[string]string{
-			"git rev-parse --show-toplevel":  root,
-			"git rev-parse --git-dir":        ".git",
-			"git rev-parse --git-common-dir": ".git",
+func TestResolveGitContextMissingRequiredPaths(t *testing.T) {
+	tests := []struct {
+		name         string
+		headContent  string
+		writeObjects bool
+	}{
+		{
+			name:         "missing HEAD",
+			headContent:  "",
+			writeObjects: true,
+		},
+		{
+			name:         "missing objects",
+			headContent:  "ref: refs/heads/main\n",
+			writeObjects: false,
 		},
 	}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			gitDir := filepath.Join(root, ".git")
+			if tc.headContent != "" {
+				if err := writeTestFileWithDirs(gitDir, "HEAD", tc.headContent); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.writeObjects {
+				if err := writeTestFileWithDirs(gitDir, "objects/placeholder", ""); err != nil {
+					t.Fatal(err)
+				}
+			}
 
-	_, err := resolveGitContext(t.Context(), runner, root)
-	if err == nil {
-		t.Fatal("expected error for missing HEAD")
-	}
-}
+			runner := gitRunnerStub{
+				outputs: map[string]string{
+					"git rev-parse --show-toplevel":  root,
+					"git rev-parse --git-dir":        ".git",
+					"git rev-parse --git-common-dir": ".git",
+				},
+			}
 
-func TestResolveGitContextMissingObjects(t *testing.T) {
-	root := t.TempDir()
-	gitDir := filepath.Join(root, ".git")
-	if err := writeTestFileWithDirs(gitDir, "HEAD", "ref: refs/heads/main\n"); err != nil {
-		t.Fatal(err)
-	}
-
-	runner := gitRunnerStub{
-		outputs: map[string]string{
-			"git rev-parse --show-toplevel":  root,
-			"git rev-parse --git-dir":        ".git",
-			"git rev-parse --git-common-dir": ".git",
-		},
-	}
-
-	_, err := resolveGitContext(t.Context(), runner, root)
-	if err == nil {
-		t.Fatal("expected error for missing objects")
+			_, err := resolveGitContext(t.Context(), runner, root)
+			if err == nil {
+				t.Fatalf("expected error for %s", tc.name)
+			}
+		})
 	}
 }
 

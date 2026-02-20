@@ -60,61 +60,61 @@ func TestInferEnvFromContainerLabels(t *testing.T) {
 }
 
 func TestExtractRunningDeployTargetStacks(t *testing.T) {
-	containers := []container.Summary{
+	tests := []struct {
+		name           string
+		includeGateway bool
+		infraProject   string
+	}{
 		{
-			Names:  []string{"/esb-dev-gateway"},
-			Labels: map[string]string{compose.ComposeServiceLabel: "gateway", compose.ComposeProjectLabel: "esb3"},
+			name:           "gateway running",
+			includeGateway: true,
+			infraProject:   "esb3",
 		},
 		{
-			Names:  []string{"/esb-dev-agent"},
-			Labels: map[string]string{compose.ComposeServiceLabel: "agent", compose.ComposeProjectLabel: "esb3"},
-		},
-		{
-			Names:  []string{"/esb-infra-registry"},
-			Labels: map[string]string{compose.ComposeServiceLabel: "registry", compose.ComposeProjectLabel: "esb3"},
-		},
-		{
-			Names:  []string{"/buildx_buildkit_esb-buildx0"},
-			Labels: map[string]string{},
+			name:           "gateway down",
+			includeGateway: false,
+			infraProject:   "esb-infra",
 		},
 	}
-
-	got := extractRunningDeployTargetStacks(containers)
-	want := []deployTargetStack{
-		{Name: "esb-dev", Project: "esb3", Env: "dev"},
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("unexpected stacks: %#v", got)
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			got := extractRunningDeployTargetStacks(testRunningStackContainers(tc.includeGateway, tc.infraProject))
+			want := []deployTargetStack{
+				{Name: "esb-dev", Project: "esb3", Env: "dev"},
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("unexpected stacks: %#v", got)
+			}
+		})
 	}
 }
 
-func TestExtractRunningDeployTargetStacksGatewayDown(t *testing.T) {
-	containers := []container.Summary{
-		{
-			Names:  []string{"/esb-dev-agent"},
-			Labels: map[string]string{compose.ComposeServiceLabel: "agent", compose.ComposeProjectLabel: "esb3"},
-		},
-		{
-			Names:  []string{"/esb-dev-database"},
-			Labels: map[string]string{compose.ComposeServiceLabel: "database", compose.ComposeProjectLabel: "esb3"},
-		},
-		{
+func testRunningStackContainers(includeGateway bool, infraProject string) []container.Summary {
+	services := []string{"agent"}
+	if includeGateway {
+		services = append([]string{"gateway"}, services...)
+	} else {
+		services = append(services, "database")
+	}
+	containers := make([]container.Summary, 0, len(services)+2)
+	for _, service := range services {
+		containers = append(containers, container.Summary{
+			Names:  []string{"/esb-dev-" + service},
+			Labels: map[string]string{compose.ComposeServiceLabel: service, compose.ComposeProjectLabel: "esb3"},
+		})
+	}
+	return append(
+		containers,
+		container.Summary{
 			Names:  []string{"/esb-infra-registry"},
-			Labels: map[string]string{compose.ComposeServiceLabel: "registry", compose.ComposeProjectLabel: "esb-infra"},
+			Labels: map[string]string{compose.ComposeServiceLabel: "registry", compose.ComposeProjectLabel: infraProject},
 		},
-		{
+		container.Summary{
 			Names:  []string{"/buildx_buildkit_esb-buildx0"},
 			Labels: map[string]string{},
 		},
-	}
-
-	got := extractRunningDeployTargetStacks(containers)
-	want := []deployTargetStack{
-		{Name: "esb-dev", Project: "esb3", Env: "dev"},
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("unexpected stacks: %#v", got)
-	}
+	)
 }
 
 func TestExtractRunningDeployTargetStacksPrefersGatewayMetadata(t *testing.T) {

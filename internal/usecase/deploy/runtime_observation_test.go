@@ -144,30 +144,7 @@ func TestApplyArtifactRuntimeConfigUsesRuntimeObservationForRuntimeStack(t *test
 	artifactRoot := filepath.Join(root, "artifact")
 	writeRuntimeConfigFile(t, filepath.Join(artifactRoot, "config", "functions.yml"), "functions: {}\n")
 	writeRuntimeConfigFile(t, filepath.Join(artifactRoot, "config", "routing.yml"), "routes: []\n")
-
-	manifest := artifactcore.ArtifactManifest{
-		SchemaVersion: artifactcore.ArtifactSchemaVersionV1,
-		Project:       "esb-dev",
-		Env:           "dev",
-		Mode:          "docker",
-		RuntimeStack: artifactcore.RuntimeStackMeta{
-			APIVersion: artifactcore.RuntimeStackAPIVersion,
-			Mode:       "docker",
-			ESBVersion: "latest",
-		},
-		Artifacts: []artifactcore.ArtifactEntry{{
-			ArtifactRoot:     artifactRoot,
-			RuntimeConfigDir: "config",
-			SourceTemplate: artifactcore.ArtifactSourceTemplate{
-				Path:   "/tmp/template.yaml",
-				SHA256: "sha",
-			},
-		}},
-	}
-	manifestPath := filepath.Join(root, "artifact.yml")
-	if err := artifactcore.WriteArtifactManifest(manifestPath, manifest); err != nil {
-		t.Fatalf("write manifest: %v", err)
-	}
+	manifestPath := writeRuntimeObservationManifest(t, root, artifactRoot)
 
 	workflow := Workflow{}
 	if err := workflow.applyArtifactRuntimeConfig(Request{
@@ -184,7 +161,21 @@ func TestApplyArtifactRuntimeConfigAllowsRuntimeStackWhenVersionObservationMissi
 	artifactRoot := filepath.Join(root, "artifact")
 	writeRuntimeConfigFile(t, filepath.Join(artifactRoot, "config", "functions.yml"), "functions: {}\n")
 	writeRuntimeConfigFile(t, filepath.Join(artifactRoot, "config", "routing.yml"), "routes: []\n")
+	manifestPath := writeRuntimeObservationManifest(t, root, artifactRoot)
 
+	workflow := Workflow{}
+	err := workflow.applyArtifactRuntimeConfig(Request{
+		ArtifactPath: manifestPath,
+		Context:      state.Context{Mode: "docker"},
+		Tag:          "",
+	}, filepath.Join(root, "out"))
+	if err != nil {
+		t.Fatalf("expected apply to continue with warning-only runtime compatibility, got: %v", err)
+	}
+}
+
+func writeRuntimeObservationManifest(t *testing.T, root, artifactRoot string) string {
+	t.Helper()
 	manifest := artifactcore.ArtifactManifest{
 		SchemaVersion: artifactcore.ArtifactSchemaVersionV1,
 		Project:       "esb-dev",
@@ -208,16 +199,7 @@ func TestApplyArtifactRuntimeConfigAllowsRuntimeStackWhenVersionObservationMissi
 	if err := artifactcore.WriteArtifactManifest(manifestPath, manifest); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
-
-	workflow := Workflow{}
-	err := workflow.applyArtifactRuntimeConfig(Request{
-		ArtifactPath: manifestPath,
-		Context:      state.Context{Mode: "docker"},
-		Tag:          "",
-	}, filepath.Join(root, "out"))
-	if err != nil {
-		t.Fatalf("expected apply to continue with warning-only runtime compatibility, got: %v", err)
-	}
+	return manifestPath
 }
 
 type runtimeObservationDockerClient struct {

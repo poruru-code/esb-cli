@@ -192,7 +192,7 @@ func TestDeployCommandRunBuildsAllTemplatesAndRunsProvisionerOnlyOnLast(t *testi
 		},
 	}
 
-	err := cmd.Run(
+	err := cmd.runWithOverrides(
 		deployInputs{
 			ProjectDir: tmp,
 			Env:        "dev",
@@ -209,6 +209,7 @@ func TestDeployCommandRunBuildsAllTemplatesAndRunsProvisionerOnlyOnLast(t *testi
 			},
 		},
 		DeployCmd{},
+		deployRunOverrides{},
 	)
 	if err != nil {
 		t.Fatalf("run deploy command: %v", err)
@@ -279,7 +280,7 @@ func TestDeployCommandRunWithDepsDisablesNoDeps(t *testing.T) {
 		},
 	}
 
-	err := cmd.Run(
+	err := cmd.runWithOverrides(
 		deployInputs{
 			ProjectDir: tmp,
 			Env:        "dev",
@@ -288,6 +289,7 @@ func TestDeployCommandRunWithDepsDisablesNoDeps(t *testing.T) {
 			Templates:  []deployTemplateInput{{TemplatePath: templatePath}},
 		},
 		DeployCmd{WithDeps: true},
+		deployRunOverrides{},
 	)
 	if err != nil {
 		t.Fatalf("run deploy command: %v", err)
@@ -330,7 +332,7 @@ func TestDeployCommandRunAllowsRenderOnlyGenerate(t *testing.T) {
 			Project:    "esb-dev",
 			Templates:  []deployTemplateInput{{TemplatePath: templatePath}},
 		},
-		DeployCmd{BuildOnly: true, SecretEnv: "secret.env"},
+		DeployCmd{BuildOnly: true},
 		deployRunOverrides{
 			buildImages:    boolPtr(false),
 			forceBuildOnly: true,
@@ -347,6 +349,84 @@ func TestDeployCommandRunAllowsRenderOnlyGenerate(t *testing.T) {
 	}
 	if provisioner.runCalls != 0 {
 		t.Fatalf("provisioner must not run when BuildOnly=true, got %d", provisioner.runCalls)
+	}
+}
+
+func TestDeployCommandRunBuildOnlyRejectsWithDeps(t *testing.T) {
+	tmp := t.TempDir()
+	setWorkingDir(t, tmp)
+	if err := os.WriteFile(filepath.Join(tmp, "docker-compose.docker.yml"), []byte("services: {}\n"), 0o600); err != nil {
+		t.Fatalf("write compose marker: %v", err)
+	}
+	templatePath := filepath.Join(tmp, "template.yaml")
+	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o600); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+	writeTestRuntimeAssets(t, tmp)
+
+	builder := &deployEntryBuilder{}
+	cmd := &deployCommand{
+		build:         builder.Build,
+		applyRuntime:  func(state.Context) error { return nil },
+		ui:            deployEntryUI{},
+		composeRunner: deployEntryRunner{},
+	}
+
+	err := cmd.runWithOverrides(
+		deployInputs{
+			ProjectDir: tmp,
+			Env:        "dev",
+			Mode:       "docker",
+			Project:    "esb-dev",
+			Templates:  []deployTemplateInput{{TemplatePath: templatePath}},
+		},
+		DeployCmd{BuildOnly: true, WithDeps: true},
+		deployRunOverrides{},
+	)
+	if err == nil {
+		t.Fatal("expected error for --with-deps with --build-only")
+	}
+	if !strings.Contains(err.Error(), "--with-deps cannot be used with --build-only") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDeployCommandRunBuildOnlyRejectsSecretEnv(t *testing.T) {
+	tmp := t.TempDir()
+	setWorkingDir(t, tmp)
+	if err := os.WriteFile(filepath.Join(tmp, "docker-compose.docker.yml"), []byte("services: {}\n"), 0o600); err != nil {
+		t.Fatalf("write compose marker: %v", err)
+	}
+	templatePath := filepath.Join(tmp, "template.yaml")
+	if err := os.WriteFile(templatePath, []byte("Resources: {}"), 0o600); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+	writeTestRuntimeAssets(t, tmp)
+
+	builder := &deployEntryBuilder{}
+	cmd := &deployCommand{
+		build:         builder.Build,
+		applyRuntime:  func(state.Context) error { return nil },
+		ui:            deployEntryUI{},
+		composeRunner: deployEntryRunner{},
+	}
+
+	err := cmd.runWithOverrides(
+		deployInputs{
+			ProjectDir: tmp,
+			Env:        "dev",
+			Mode:       "docker",
+			Project:    "esb-dev",
+			Templates:  []deployTemplateInput{{TemplatePath: templatePath}},
+		},
+		DeployCmd{BuildOnly: true, SecretEnv: "secret.env"},
+		deployRunOverrides{},
+	)
+	if err == nil {
+		t.Fatal("expected error for --secret-env with --build-only")
+	}
+	if !strings.Contains(err.Error(), "--secret-env cannot be used with --build-only") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -455,20 +535,4 @@ func TestNewDeployCommandCopiesConfig(t *testing.T) {
 	if !cmd.emojiEnabled {
 		t.Fatal("expected emojiEnabled=true")
 	}
-}
-
-func setWorkingDir(t *testing.T, dir string) {
-	t.Helper()
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("get cwd: %v", err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir %s: %v", dir, err)
-	}
-	t.Cleanup(func() {
-		if err := os.Chdir(wd); err != nil {
-			t.Fatalf("restore cwd %s: %v", wd, err)
-		}
-	})
 }

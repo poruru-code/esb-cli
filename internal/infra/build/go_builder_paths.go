@@ -4,24 +4,15 @@
 package build
 
 import (
-	"fmt"
 	"os"
 	"strings"
 
 	"github.com/poruru-code/esb-cli/internal/constants"
-	"github.com/poruru-code/esb-cli/internal/meta"
+	"github.com/poruru-code/esb-cli/internal/infra/staging"
 )
 
-func resolveComposeProjectName(projectName, appName, env string) string {
-	composeProject := strings.TrimSpace(projectName)
-	if composeProject != "" {
-		return composeProject
-	}
-	brandName := strings.ToLower(strings.TrimSpace(appName))
-	if brandName == "" {
-		brandName = meta.Slug
-	}
-	return fmt.Sprintf("%s-%s", brandName, strings.ToLower(strings.TrimSpace(env)))
+func resolveComposeProjectName(projectName, env string) string {
+	return staging.ComposeProjectKey(projectName, env)
 }
 
 func resolveRuntimeRegistry(defaultRegistry string) string {

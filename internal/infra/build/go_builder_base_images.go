@@ -92,41 +92,17 @@ func (b *GoBuilder) buildBaseImages(input baseImageBuildInput) error {
 		}
 
 		if buildOS {
-			osTarget := bakeTarget{
-				Name:       "os-base",
-				Context:    commonDir,
-				Dockerfile: filepath.Join(commonDir, "Dockerfile.os-base"),
-				Tags:       []string{osBaseTag},
-				Outputs:    resolveBakeOutputs(input.RegistryForPush, false, input.IncludeDockerOutput),
-				Labels:     baseImageLabels,
-				Args: mergeStringMap(proxyArgs, map[string]string{
-					constants.BuildArgCAFingerprint: input.RootFingerprint,
-					"ROOT_CA_MOUNT_ID":              meta.RootCAMountID,
-					"ROOT_CA_CERT_FILENAME":         meta.RootCACertFilename,
-				}),
-				Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
-				NoCache: input.NoCache,
-			}
-			baseTargets = append(baseTargets, osTarget)
+			baseTargets = append(
+				baseTargets,
+				newRootCABaseTarget("os-base", "Dockerfile.os-base", osBaseTag, commonDir, rootCAPath, baseImageLabels, proxyArgs, input),
+			)
 		}
 
 		if buildPython {
-			pythonTarget := bakeTarget{
-				Name:       "python-base",
-				Context:    commonDir,
-				Dockerfile: filepath.Join(commonDir, "Dockerfile.python-base"),
-				Tags:       []string{pythonBaseTag},
-				Outputs:    resolveBakeOutputs(input.RegistryForPush, false, input.IncludeDockerOutput),
-				Labels:     baseImageLabels,
-				Args: mergeStringMap(proxyArgs, map[string]string{
-					constants.BuildArgCAFingerprint: input.RootFingerprint,
-					"ROOT_CA_MOUNT_ID":              meta.RootCAMountID,
-					"ROOT_CA_CERT_FILENAME":         meta.RootCACertFilename,
-				}),
-				Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
-				NoCache: input.NoCache,
-			}
-			baseTargets = append(baseTargets, pythonTarget)
+			baseTargets = append(
+				baseTargets,
+				newRootCABaseTarget("python-base", "Dockerfile.python-base", pythonBaseTag, commonDir, rootCAPath, baseImageLabels, proxyArgs, input),
+			)
 		}
 
 		return runBakeGroup(
@@ -139,4 +115,31 @@ func (b *GoBuilder) buildBaseImages(input baseImageBuildInput) error {
 			input.Verbose,
 		)
 	})
+}
+
+func newRootCABaseTarget(
+	name string,
+	dockerfileName string,
+	tag string,
+	commonDir string,
+	rootCAPath string,
+	labels map[string]string,
+	proxyArgs map[string]string,
+	input baseImageBuildInput,
+) bakeTarget {
+	return bakeTarget{
+		Name:       name,
+		Context:    commonDir,
+		Dockerfile: filepath.Join(commonDir, dockerfileName),
+		Tags:       []string{tag},
+		Outputs:    resolveBakeOutputs(input.RegistryForPush, false, input.IncludeDockerOutput),
+		Labels:     labels,
+		Args: mergeStringMap(proxyArgs, map[string]string{
+			constants.BuildArgCAFingerprint: input.RootFingerprint,
+			"ROOT_CA_MOUNT_ID":              meta.RootCAMountID,
+			"ROOT_CA_CERT_FILENAME":         meta.RootCACertFilename,
+		}),
+		Secrets: []string{fmt.Sprintf("id=%s,src=%s", meta.RootCAMountID, rootCAPath)},
+		NoCache: input.NoCache,
+	}
 }

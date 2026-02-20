@@ -182,10 +182,6 @@ func newDeployCommand(config deployCommandConfig) *deployCommand {
 	}
 }
 
-func (c *deployCommand) Run(inputs deployInputs, flags DeployCmd) error {
-	return c.runWithOverrides(inputs, flags, deployRunOverrides{})
-}
-
 func (c *deployCommand) runWithOverrides(
 	inputs deployInputs,
 	flags DeployCmd,
@@ -201,6 +197,12 @@ func (c *deployCommand) runWithOverrides(
 		return errTemplatePathRequired
 	}
 	buildOnly := flags.BuildOnly || overrides.forceBuildOnly
+	if buildOnly && flags.WithDeps {
+		return errors.New("deploy: --with-deps cannot be used with --build-only")
+	}
+	if buildOnly && strings.TrimSpace(flags.SecretEnv) != "" {
+		return errors.New("deploy: --secret-env cannot be used with --build-only")
+	}
 	workflow := deploy.NewDeployWorkflow(c.build, c.applyRuntime, c.ui, c.composeRunner)
 	if c.workflow.composeProvisioner != nil {
 		workflow.ComposeProvisioner = c.workflow.composeProvisioner

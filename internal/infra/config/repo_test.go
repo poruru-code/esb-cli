@@ -36,42 +36,40 @@ func TestResolveRepoRootErrorsWhenMissing(t *testing.T) {
 	}
 }
 
-func TestResolveRepoRootUsesStartDirWhenProvided(t *testing.T) {
-	base := t.TempDir()
-	repoPath := makeRepo(t, base, "repo-path")
-
-	startDir := filepath.Join(repoPath, "nested")
-	if err := os.MkdirAll(startDir, 0o755); err != nil {
-		t.Fatalf("create start dir: %v", err)
+func TestResolveRepoRootWithStartDir(t *testing.T) {
+	tests := []struct {
+		name    string
+		resolve func(string) (string, error)
+	}{
+		{
+			name:    "ResolveRepoRoot uses start dir",
+			resolve: ResolveRepoRoot,
+		},
+		{
+			name:    "ResolveRepoRootFromPath ignores cwd",
+			resolve: ResolveRepoRootFromPath,
+		},
 	}
-	chdir(t, t.TempDir())
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			base := t.TempDir()
+			repoPath := makeRepo(t, base, "repo-path")
 
-	root, err := ResolveRepoRoot(startDir)
-	if err != nil {
-		t.Fatalf("resolve repo root: %v", err)
-	}
-	if root != repoPath {
-		t.Fatalf("expected path repo %q, got %q", repoPath, root)
-	}
-}
+			startDir := filepath.Join(repoPath, "nested")
+			if err := os.MkdirAll(startDir, 0o755); err != nil {
+				t.Fatalf("create start dir: %v", err)
+			}
+			chdir(t, t.TempDir())
 
-func TestResolveRepoRootFromPathIgnoresCwd(t *testing.T) {
-	base := t.TempDir()
-	repoPath := makeRepo(t, base, "repo-path")
-
-	startDir := filepath.Join(repoPath, "nested")
-	if err := os.MkdirAll(startDir, 0o755); err != nil {
-		t.Fatalf("create start dir: %v", err)
-	}
-
-	chdir(t, t.TempDir())
-
-	root, err := ResolveRepoRootFromPath(startDir)
-	if err != nil {
-		t.Fatalf("resolve repo root: %v", err)
-	}
-	if root != repoPath {
-		t.Fatalf("expected path repo %q, got %q", repoPath, root)
+			root, err := tc.resolve(startDir)
+			if err != nil {
+				t.Fatalf("resolve repo root: %v", err)
+			}
+			if root != repoPath {
+				t.Fatalf("expected path repo %q, got %q", repoPath, root)
+			}
+		})
 	}
 }
 

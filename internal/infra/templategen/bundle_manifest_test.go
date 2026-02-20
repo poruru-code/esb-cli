@@ -85,19 +85,7 @@ func TestWriteBundleManifest(t *testing.T) {
 	imageTag := "latest"
 	functionImage := strings.Join([]string{meta.ImagePrefix + "-lambda-hello", imageTag}, ":")
 
-	images := map[string]manifestImageMeta{
-		lambdaBaseImageTag("", imageTag):            {id: "sha256:1111111111111111111111111111111111111111111111111111111111111111", platform: "linux/amd64"},
-		meta.ImagePrefix + "-os-base:latest":        {id: "sha256:2222222222222222222222222222222222222222222222222222222222222222", platform: "linux/amd64"},
-		meta.ImagePrefix + "-python-base:latest":    {id: "sha256:3333333333333333333333333333333333333333333333333333333333333333", platform: "linux/amd64"},
-		meta.ImagePrefix + "-gateway-docker:latest": {id: "sha256:4444444444444444444444444444444444444444444444444444444444444444", platform: "linux/amd64"},
-		meta.ImagePrefix + "-agent-docker:latest":   {id: "sha256:5555555555555555555555555555555555555555555555555555555555555555", platform: "linux/amd64"},
-		meta.ImagePrefix + "-provisioner:latest":    {id: "sha256:6666666666666666666666666666666666666666666666666666666666666666", platform: "linux/amd64"},
-		functionImage:                               {id: "sha256:7777777777777777777777777777777777777777777777777777777777777777", platform: "linux/amd64"},
-		"alpine:latest":                             {id: "sha256:8888888888888888888888888888888888888888888888888888888888888888", platform: "linux/amd64"},
-		"rustfs/rustfs:latest":                      {id: "sha256:9999999999999999999999999999999999999999999999999999999999999999", platform: "linux/amd64"},
-		"scylladb/scylla:latest":                    {id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", platform: "linux/amd64"},
-		"victoriametrics/victoria-logs:latest":      {id: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", platform: "linux/amd64"},
-	}
+	images := dockerManifestImages(imageTag, functionImage)
 
 	runner := &manifestRunner{images: images}
 	outputDir := filepath.Join(tmpDir, meta.OutputDir, "default")
@@ -240,19 +228,7 @@ func TestWriteBundleManifestImageSourceUsesBuiltFunctionImage(t *testing.T) {
 
 	imageTag := "latest"
 	functionImage := meta.ImagePrefix + "-lambda-image:latest"
-	images := map[string]manifestImageMeta{
-		lambdaBaseImageTag("", imageTag):            {id: "sha256:1111111111111111111111111111111111111111111111111111111111111111", platform: "linux/amd64"},
-		meta.ImagePrefix + "-os-base:latest":        {id: "sha256:2222222222222222222222222222222222222222222222222222222222222222", platform: "linux/amd64"},
-		meta.ImagePrefix + "-python-base:latest":    {id: "sha256:3333333333333333333333333333333333333333333333333333333333333333", platform: "linux/amd64"},
-		meta.ImagePrefix + "-gateway-docker:latest": {id: "sha256:4444444444444444444444444444444444444444444444444444444444444444", platform: "linux/amd64"},
-		meta.ImagePrefix + "-agent-docker:latest":   {id: "sha256:5555555555555555555555555555555555555555555555555555555555555555", platform: "linux/amd64"},
-		meta.ImagePrefix + "-provisioner:latest":    {id: "sha256:6666666666666666666666666666666666666666666666666666666666666666", platform: "linux/amd64"},
-		functionImage:                               {id: "sha256:7777777777777777777777777777777777777777777777777777777777777777", platform: "linux/amd64"},
-		"alpine:latest":                             {id: "sha256:8888888888888888888888888888888888888888888888888888888888888888", platform: "linux/amd64"},
-		"rustfs/rustfs:latest":                      {id: "sha256:9999999999999999999999999999999999999999999999999999999999999999", platform: "linux/amd64"},
-		"scylladb/scylla:latest":                    {id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", platform: "linux/amd64"},
-		"victoriametrics/victoria-logs:latest":      {id: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", platform: "linux/amd64"},
-	}
+	images := dockerManifestImages(imageTag, functionImage)
 	runner := &manifestRunner{images: images}
 
 	outputDir := filepath.Join(tmpDir, meta.OutputDir, "default")
@@ -329,6 +305,22 @@ func TestWriteBundleManifestFailsWhenImageMissing(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "image not found") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func dockerManifestImages(imageTag, functionImage string) map[string]manifestImageMeta {
+	return map[string]manifestImageMeta{
+		lambdaBaseImageTag("", imageTag):            {id: "sha256:1111111111111111111111111111111111111111111111111111111111111111", platform: "linux/amd64"},
+		meta.ImagePrefix + "-os-base:latest":        {id: "sha256:2222222222222222222222222222222222222222222222222222222222222222", platform: "linux/amd64"},
+		meta.ImagePrefix + "-python-base:latest":    {id: "sha256:3333333333333333333333333333333333333333333333333333333333333333", platform: "linux/amd64"},
+		meta.ImagePrefix + "-gateway-docker:latest": {id: "sha256:4444444444444444444444444444444444444444444444444444444444444444", platform: "linux/amd64"},
+		meta.ImagePrefix + "-agent-docker:latest":   {id: "sha256:5555555555555555555555555555555555555555555555555555555555555555", platform: "linux/amd64"},
+		meta.ImagePrefix + "-provisioner:latest":    {id: "sha256:6666666666666666666666666666666666666666666666666666666666666666", platform: "linux/amd64"},
+		functionImage:                               {id: "sha256:7777777777777777777777777777777777777777777777777777777777777777", platform: "linux/amd64"},
+		"alpine:latest":                             {id: "sha256:8888888888888888888888888888888888888888888888888888888888888888", platform: "linux/amd64"},
+		"rustfs/rustfs:latest":                      {id: "sha256:9999999999999999999999999999999999999999999999999999999999999999", platform: "linux/amd64"},
+		"scylladb/scylla:latest":                    {id: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", platform: "linux/amd64"},
+		"victoriametrics/victoria-logs:latest":      {id: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", platform: "linux/amd64"},
 	}
 }
 
