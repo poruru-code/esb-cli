@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/poruru-code/esb/cli/internal/domain/template"
+	"github.com/poruru-code/esb-cli/internal/domain/template"
 )
 
 func resolveResourcePath(baseDir, raw string) string {

@@ -10,10 +10,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	runtimecfg "github.com/poruru-code/esb/cli/internal/domain/runtime"
-	"github.com/poruru-code/esb/cli/internal/domain/template"
-	"github.com/poruru-code/esb/cli/internal/infra/config"
-	samparser "github.com/poruru-code/esb/cli/internal/infra/sam"
+	runtimecfg "github.com/poruru-code/esb-cli/internal/domain/runtime"
+	"github.com/poruru-code/esb-cli/internal/domain/template"
+	"github.com/poruru-code/esb-cli/internal/infra/config"
+	samparser "github.com/poruru-code/esb-cli/internal/infra/sam"
 )
 
 // GenerateOptions configures Generator.GenerateFiles behavior.

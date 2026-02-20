@@ -9,7 +9,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/poruru-code/esb/cli/internal/constants"
+	"github.com/poruru-code/esb-cli/internal/constants"
 	"gopkg.in/yaml.v3"
 )
 
@@ -80,8 +80,7 @@ func loadRuntimeEnvContract(t *testing.T) runtimeEnvContract {
 	}
 	contractPath := filepath.Clean(filepath.Join(
 		filepath.Dir(thisFile),
-		"..", "..", "..", "..",
-		"e2e", "contracts", "runtime_env_contract.yaml",
+		"testdata", "runtime_env_contract.yaml",
 	))
 	data, err := os.ReadFile(contractPath)
 	if err != nil {

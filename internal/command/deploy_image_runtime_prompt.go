@@ -10,9 +10,9 @@ import (
 	"sort"
 	"strings"
 
-	runtimecfg "github.com/poruru-code/esb/cli/internal/domain/runtime"
-	"github.com/poruru-code/esb/cli/internal/infra/interaction"
-	"github.com/poruru-code/esb/cli/internal/infra/sam"
+	runtimecfg "github.com/poruru-code/esb-cli/internal/domain/runtime"
+	"github.com/poruru-code/esb-cli/internal/infra/interaction"
+	"github.com/poruru-code/esb-cli/internal/infra/sam"
 )
 
 const (

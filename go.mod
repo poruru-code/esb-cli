@@ -1,4 +1,4 @@
-module github.com/poruru-code/esb/cli
+module github.com/poruru-code/esb-cli
 
 go 1.25.1
 

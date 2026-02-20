@@ -10,7 +10,7 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
-	"github.com/poruru-code/esb/cli/internal/infra/compose"
+	"github.com/poruru-code/esb-cli/internal/infra/compose"
 	"github.com/poruru-code/esb/pkg/artifactcore"
 	"github.com/poruru-code/esb/pkg/runtimeimage"
 )

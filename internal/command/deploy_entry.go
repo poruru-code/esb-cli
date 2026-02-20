@@ -10,13 +10,13 @@ import (
 	"os"
 	"strings"
 
-	domaincfg "github.com/poruru-code/esb/cli/internal/domain/config"
-	"github.com/poruru-code/esb/cli/internal/domain/state"
-	"github.com/poruru-code/esb/cli/internal/infra/build"
-	"github.com/poruru-code/esb/cli/internal/infra/compose"
-	"github.com/poruru-code/esb/cli/internal/infra/interaction"
-	"github.com/poruru-code/esb/cli/internal/infra/ui"
-	"github.com/poruru-code/esb/cli/internal/usecase/deploy"
+	domaincfg "github.com/poruru-code/esb-cli/internal/domain/config"
+	"github.com/poruru-code/esb-cli/internal/domain/state"
+	"github.com/poruru-code/esb-cli/internal/infra/build"
+	"github.com/poruru-code/esb-cli/internal/infra/compose"
+	"github.com/poruru-code/esb-cli/internal/infra/interaction"
+	"github.com/poruru-code/esb-cli/internal/infra/ui"
+	"github.com/poruru-code/esb-cli/internal/usecase/deploy"
 )
 
 // runDeploy executes the 'deploy' command.

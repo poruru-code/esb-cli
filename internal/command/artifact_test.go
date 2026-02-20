@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poruru-code/esb/cli/internal/domain/state"
-	"github.com/poruru-code/esb/cli/internal/infra/ui"
+	"github.com/poruru-code/esb-cli/internal/domain/state"
+	"github.com/poruru-code/esb-cli/internal/infra/ui"
 	engine "github.com/poruru-code/esb/pkg/artifactcore"
 )
 

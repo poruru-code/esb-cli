@@ -14,15 +14,15 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/joho/godotenv"
-	"github.com/poruru-code/esb/cli/internal/domain/state"
-	"github.com/poruru-code/esb/cli/internal/infra/build"
-	"github.com/poruru-code/esb/cli/internal/infra/compose"
-	"github.com/poruru-code/esb/cli/internal/infra/config"
-	"github.com/poruru-code/esb/cli/internal/infra/interaction"
-	runtimeinfra "github.com/poruru-code/esb/cli/internal/infra/runtime"
-	"github.com/poruru-code/esb/cli/internal/infra/ui"
-	usecasedeploy "github.com/poruru-code/esb/cli/internal/usecase/deploy"
-	"github.com/poruru-code/esb/cli/internal/version"
+	"github.com/poruru-code/esb-cli/internal/domain/state"
+	"github.com/poruru-code/esb-cli/internal/infra/build"
+	"github.com/poruru-code/esb-cli/internal/infra/compose"
+	"github.com/poruru-code/esb-cli/internal/infra/config"
+	"github.com/poruru-code/esb-cli/internal/infra/interaction"
+	runtimeinfra "github.com/poruru-code/esb-cli/internal/infra/runtime"
+	"github.com/poruru-code/esb-cli/internal/infra/ui"
+	usecasedeploy "github.com/poruru-code/esb-cli/internal/usecase/deploy"
+	"github.com/poruru-code/esb-cli/internal/version"
 )
 
 const (
@@ -342,10 +342,15 @@ func enforceRepoScope(args []string, deps Dependencies, out io.Writer) (int, boo
 }
 
 func requiresRepoScope(args []string) bool {
-	if commandName(args) == "version" {
+	if isHelpCommand(args) {
 		return false
 	}
-	return !isHelpCommand(args)
+	switch commandName(args) {
+	case "deploy", "artifact":
+		return true
+	default:
+		return false
+	}
 }
 
 func isHelpCommand(args []string) bool {

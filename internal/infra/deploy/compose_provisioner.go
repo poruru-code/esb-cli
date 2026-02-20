@@ -6,13 +6,14 @@ package deploy
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
-	deployport "github.com/poruru-code/esb/cli/internal/domain/deployport"
-	"github.com/poruru-code/esb/cli/internal/infra/compose"
-	"github.com/poruru-code/esb/cli/internal/infra/config"
-	"github.com/poruru-code/esb/cli/internal/infra/ui"
+	deployport "github.com/poruru-code/esb-cli/internal/domain/deployport"
+	"github.com/poruru-code/esb-cli/internal/infra/compose"
+	"github.com/poruru-code/esb-cli/internal/infra/config"
+	"github.com/poruru-code/esb-cli/internal/infra/ui"
 	"github.com/poruru-code/esb/pkg/composeprovision"
 )
 
@@ -76,9 +77,19 @@ func (p composeProvisioner) RunProvisioner(
 		return fmt.Errorf("compose runner is not configured")
 	}
 
-	repoRoot, err := config.ResolveRepoRoot(request.ProjectDir)
-	if err != nil {
-		return fmt.Errorf("resolve repo root: %w", err)
+	repoRoot := strings.TrimSpace(request.ProjectDir)
+	if repoRoot == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("resolve project dir: %w", err)
+		}
+		repoRoot = cwd
+	}
+	if abs, err := filepath.Abs(repoRoot); err == nil {
+		repoRoot = abs
+	}
+	if resolvedRoot, err := config.ResolveRepoRoot(request.ProjectDir); err == nil {
+		repoRoot = resolvedRoot
 	}
 
 	ctx := context.Background()

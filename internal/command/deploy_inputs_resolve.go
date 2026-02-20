@@ -8,12 +8,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/poruru-code/esb/cli/internal/constants"
-	runtimecfg "github.com/poruru-code/esb/cli/internal/domain/runtime"
-	"github.com/poruru-code/esb/cli/internal/infra/config"
-	"github.com/poruru-code/esb/cli/internal/infra/envutil"
-	"github.com/poruru-code/esb/cli/internal/infra/interaction"
-	runtimeinfra "github.com/poruru-code/esb/cli/internal/infra/runtime"
+	"github.com/poruru-code/esb-cli/internal/constants"
+	runtimecfg "github.com/poruru-code/esb-cli/internal/domain/runtime"
+	"github.com/poruru-code/esb-cli/internal/infra/config"
+	"github.com/poruru-code/esb-cli/internal/infra/envutil"
+	"github.com/poruru-code/esb-cli/internal/infra/interaction"
+	runtimeinfra "github.com/poruru-code/esb-cli/internal/infra/runtime"
 )
 
 func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {

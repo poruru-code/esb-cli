@@ -9,8 +9,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/poruru-code/esb/cli/internal/infra/interaction"
-	runtimeinfra "github.com/poruru-code/esb/cli/internal/infra/runtime"
+	"github.com/poruru-code/esb-cli/internal/infra/interaction"
+	runtimeinfra "github.com/poruru-code/esb-cli/internal/infra/runtime"
 )
 
 var errEnvMismatch = errors.New("environment mismatch")
