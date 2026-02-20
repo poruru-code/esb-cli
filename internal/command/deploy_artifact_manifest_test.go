@@ -3,6 +3,7 @@ package command
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/poruru-code/esb-cli/internal/meta"
@@ -197,7 +198,7 @@ func TestManifestGenerationDoesNotRequireJavaJars(t *testing.T) {
 	if err := os.WriteFile(inputs.Templates[0].TemplatePath, []byte("Resources: {}\n"), 0o600); err != nil {
 		t.Fatalf("write template: %v", err)
 	}
-	manifestPath, err := writeDeployArtifactManifest(inputs, false, "", "latest")
+	manifestPath, err := writeDeployArtifactManifest(inputs, false, "")
 	if err != nil {
 		t.Fatalf("writeDeployArtifactManifest() error = %v", err)
 	}
@@ -211,13 +212,14 @@ func TestManifestGenerationDoesNotRequireJavaJars(t *testing.T) {
 	if manifest.Artifacts[0].ID == "" {
 		t.Fatalf("artifact id should be generated")
 	}
-	if manifest.RuntimeStack.APIVersion != artifactcore.RuntimeStackAPIVersion {
-		t.Fatalf("runtime stack api_version = %q, want %q", manifest.RuntimeStack.APIVersion, artifactcore.RuntimeStackAPIVersion)
+	if manifest.RuntimeStack.APIVersion != "" || manifest.RuntimeStack.Mode != "" || manifest.RuntimeStack.ESBVersion != "" {
+		t.Fatalf("runtime stack should be empty, got %#v", manifest.RuntimeStack)
 	}
-	if manifest.RuntimeStack.Mode != "docker" {
-		t.Fatalf("runtime stack mode = %q, want docker", manifest.RuntimeStack.Mode)
+	raw, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("read manifest file: %v", err)
 	}
-	if manifest.RuntimeStack.ESBVersion != "latest" {
-		t.Fatalf("runtime stack esb_version = %q, want latest", manifest.RuntimeStack.ESBVersion)
+	if strings.Contains(string(raw), "runtime_stack:") {
+		t.Fatalf("manifest must not include runtime_stack section:\n%s", string(raw))
 	}
 }
