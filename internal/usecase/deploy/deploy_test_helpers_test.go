@@ -52,7 +52,7 @@ func (u *testUI) Error(msg string) {
 }
 
 func (u *testUI) Block(_, _ string, _ []ui.KeyValue) {
-	// Simple mock implementation
+	// Simple mock implementation.
 }
 
 // fakeComposeRunner is a test double for compose.CommandRunner.

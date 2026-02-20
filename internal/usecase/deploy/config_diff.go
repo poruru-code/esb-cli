@@ -79,14 +79,6 @@ func diffConfigSnapshots(before, after domaincfg.Snapshot) domaincfg.Diff {
 	return domaincfg.DiffSnapshots(before, after)
 }
 
-func emitConfigMergeSummary(printer ui.UserInterface, configDir string, diff domaincfg.Diff) {
-	if printer == nil {
-		return
-	}
-	rows := buildConfigSummaryRows("Staging config", configDir, diff, domaincfg.FormatCountsLabel)
-	printer.Block("🧩", "Config merge summary", rows)
-}
-
 func emitTemplateDeltaSummary(printer ui.UserInterface, configDir string, diff domaincfg.Diff) {
 	if printer == nil {
 		return

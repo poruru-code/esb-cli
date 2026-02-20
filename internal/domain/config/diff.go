@@ -43,17 +43,6 @@ func DiffSnapshots(before, after Snapshot) Diff {
 	return diff
 }
 
-// FormatCountsLabel formats counts for merged config summaries.
-func FormatCountsLabel(counts Counts) string {
-	return fmt.Sprintf(
-		"new %d / updated %d / removed %d (total %d)",
-		counts.Added,
-		counts.Updated,
-		counts.Removed,
-		counts.Total,
-	)
-}
-
 // FormatTemplateCounts formats counts for template delta summaries.
 func FormatTemplateCounts(counts Counts) string {
 	unchanged := counts.Total - counts.Added - counts.Updated

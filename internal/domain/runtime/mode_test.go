@@ -33,18 +33,6 @@ func TestNormalizeMode(t *testing.T) {
 	}
 }
 
-func TestFallbackMode(t *testing.T) {
-	if got := FallbackMode(""); got != ModeDocker {
-		t.Fatalf("FallbackMode(empty)=%q, want %q", got, ModeDocker)
-	}
-	if got := FallbackMode("containerd"); got != ModeContainerd {
-		t.Fatalf("FallbackMode(containerd)=%q, want %q", got, ModeContainerd)
-	}
-	if got := FallbackMode("invalid"); got != ModeDocker {
-		t.Fatalf("FallbackMode(invalid)=%q, want %q", got, ModeDocker)
-	}
-}
-
 func TestInferModeFromComposeFiles(t *testing.T) {
 	files := []string{
 		"/tmp/docker-compose.docker.yml",

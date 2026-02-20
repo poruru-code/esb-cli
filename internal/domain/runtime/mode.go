@@ -34,19 +34,6 @@ func NormalizeMode(mode string) (string, error) {
 	}
 }
 
-// FallbackMode returns docker when the previous value is empty or invalid.
-func FallbackMode(previous string) string {
-	trimmed := strings.TrimSpace(previous)
-	if trimmed == "" {
-		return ModeDocker
-	}
-	mode, err := NormalizeMode(trimmed)
-	if err != nil {
-		return ModeDocker
-	}
-	return mode
-}
-
 // InferModeFromComposeFiles infers mode from compose file names.
 func InferModeFromComposeFiles(files []string) string {
 	for _, file := range files {
