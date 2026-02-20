@@ -38,6 +38,13 @@ type deployRuntimeContext struct {
 	modeInferenceErr error
 }
 
+type runtimeProjectSelection struct {
+	prevEnv       string
+	projectValue  string
+	projectSource string
+	selectedStack deployTargetStack
+}
+
 type deployTemplateOverrideInputs struct {
 	imageSources  map[string]string
 	imageRuntimes map[string]string
@@ -172,65 +179,119 @@ func newDeployInputsResolver(deps Dependencies) deployInputsResolver {
 }
 
 func (r deployInputsResolver) resolveRuntimeContext(cli CLI, last deployInputs) (deployRuntimeContext, error) {
-	repoRoot, err := r.repoResolver("")
+	repoRoot, err := r.resolveRuntimeRepoRoot()
 	if err != nil {
-		return deployRuntimeContext{}, fmt.Errorf("resolve repo root: %w", err)
-	}
-	if err := config.EnsureProjectConfig(repoRoot); err != nil {
 		return deployRuntimeContext{}, err
 	}
-
-	prevEnv := strings.TrimSpace(last.Env)
-	projectValue, projectValueSource, projectExplicit := resolveProjectValue(cli.Deploy.Project)
-
-	var selectedStack deployTargetStack
-	if !projectExplicit {
-		runningStacks, stackDiscoverErr := discoverRunningDeployTargetStacks(r.dockerClientFactory)
-		if stackDiscoverErr != nil {
-			writeWarningf(r.errOut, "Warning: failed to discover running stacks: %v\n", stackDiscoverErr)
-		}
-		selectedStack, err = resolveDeployTargetStack(runningStacks, r.isTTY, r.prompter)
-		if err != nil {
-			return deployRuntimeContext{}, err
-		}
+	selection, err := r.resolveRuntimeProjectSelection(cli, last)
+	if err != nil {
+		return deployRuntimeContext{}, err
 	}
-
-	composeProject, projectSource := resolveComposeProjectValue(
-		projectValue,
-		projectValueSource,
-		selectedStack,
-		cli.EnvFlag,
-		prevEnv,
-	)
+	composeProject, projectSource, err := resolveRuntimeComposeProject(cli, selection)
+	if err != nil {
+		return deployRuntimeContext{}, err
+	}
 	if strings.TrimSpace(composeProject) == "" {
 		return deployRuntimeContext{}, errComposeProjectRequired
 	}
-
-	selectedEnv, err := resolveDeployEnvFromStack(
-		cli.EnvFlag,
-		selectedStack,
-		composeProject,
-		r.isTTY,
-		r.prompter,
-		r.runtimeResolver,
-		prevEnv,
-	)
+	selectedEnv, err := r.resolveRuntimeSelectedEnv(cli, selection, composeProject)
 	if err != nil {
 		return deployRuntimeContext{}, err
 	}
-
-	inferredMode, inferredModeSource, modeInferErr := inferDeployModeFromProject(composeProject, r.dockerClientFactory)
+	inferredMode, inferredModeSource, modeInferErr := r.resolveRuntimeModeInference(composeProject)
 	return deployRuntimeContext{
 		repoRoot:         repoRoot,
-		selectedStack:    selectedStack,
+		selectedStack:    selection.selectedStack,
 		composeProject:   composeProject,
 		projectSource:    projectSource,
 		selectedEnv:      selectedEnv,
-		prevEnv:          prevEnv,
+		prevEnv:          selection.prevEnv,
 		inferredMode:     inferredMode,
 		inferredModeSrc:  inferredModeSource,
 		modeInferenceErr: modeInferErr,
 	}, nil
+}
+
+func (r deployInputsResolver) resolveRuntimeRepoRoot() (string, error) {
+	repoRoot, err := r.repoResolver("")
+	if err != nil {
+		return "", fmt.Errorf("resolve repo root: %w", err)
+	}
+	if err := config.EnsureProjectConfig(repoRoot); err != nil {
+		return "", err
+	}
+	return repoRoot, nil
+}
+
+func (r deployInputsResolver) resolveRuntimeProjectSelection(
+	cli CLI,
+	last deployInputs,
+) (runtimeProjectSelection, error) {
+	prevEnv := strings.TrimSpace(last.Env)
+	projectValue, projectValueSource, projectExplicit := resolveProjectValue(cli.Deploy.Project)
+	selectedStack, err := r.resolveRuntimeSelectedStack(projectExplicit)
+	if err != nil {
+		return runtimeProjectSelection{}, err
+	}
+	return runtimeProjectSelection{
+		prevEnv:       prevEnv,
+		projectValue:  projectValue,
+		projectSource: projectValueSource,
+		selectedStack: selectedStack,
+	}, nil
+}
+
+func (r deployInputsResolver) resolveRuntimeSelectedStack(
+	projectExplicit bool,
+) (deployTargetStack, error) {
+	if projectExplicit {
+		return deployTargetStack{}, nil
+	}
+	runningStacks, stackDiscoverErr := discoverRunningDeployTargetStacks(r.dockerClientFactory)
+	if stackDiscoverErr != nil {
+		writeWarningf(r.errOut, "Warning: failed to discover running stacks: %v\n", stackDiscoverErr)
+	}
+	selectedStack, err := resolveDeployTargetStack(runningStacks, r.isTTY, r.prompter)
+	if err != nil {
+		return deployTargetStack{}, err
+	}
+	return selectedStack, nil
+}
+
+func resolveRuntimeComposeProject(
+	cli CLI,
+	selection runtimeProjectSelection,
+) (string, string, error) {
+	composeProject, projectSource := resolveComposeProjectValue(
+		selection.projectValue,
+		selection.projectSource,
+		selection.selectedStack,
+		cli.EnvFlag,
+		selection.prevEnv,
+	)
+	return composeProject, projectSource, nil
+}
+
+func (r deployInputsResolver) resolveRuntimeSelectedEnv(
+	cli CLI,
+	selection runtimeProjectSelection,
+	composeProject string,
+) (envChoice, error) {
+	return resolveDeployEnvFromStack(
+		cli.EnvFlag,
+		selection.selectedStack,
+		composeProject,
+		r.isTTY,
+		r.prompter,
+		r.runtimeResolver,
+		selection.prevEnv,
+	)
+}
+
+func (r deployInputsResolver) resolveRuntimeModeInference(
+	composeProject string,
+) (string, string, error) {
+	return inferDeployModeFromProject(composeProject, r.dockerClientFactory)
 }
 
 func (r deployInputsResolver) resolveSelectedEnv(
