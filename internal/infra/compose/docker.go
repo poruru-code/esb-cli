@@ -5,7 +5,6 @@ package compose
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/docker/docker/api/types/container"
@@ -59,62 +58,4 @@ func PrimaryContainerName(names []string) string {
 		}
 	}
 	return ""
-}
-
-// ListContainersByProject returns container information for all containers
-// belonging to the specified Docker Compose project.
-func ListContainersByProject(
-	ctx context.Context,
-	client DockerClient,
-	project string,
-) ([]ContainerInfo, error) {
-	labelFilter := filters.NewArgs()
-	labelFilter.Add("label", fmt.Sprintf("%s=%s", ComposeProjectLabel, project))
-
-	containers, err := client.ContainerList(ctx, container.ListOptions{
-		All:     true,
-		Filters: labelFilter,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("list containers: %w", err)
-	}
-
-	result := make([]ContainerInfo, 0, len(containers))
-	for _, ctr := range containers {
-		if ctr.Labels == nil || ctr.Labels[ComposeProjectLabel] != project {
-			continue
-		}
-
-		name := ""
-		name = PrimaryContainerName(ctr.Names)
-
-		result = append(result, ContainerInfo{
-			Name:    name,
-			Service: ctr.Labels[ComposeServiceLabel],
-			State:   ctr.State,
-		})
-	}
-	return result, nil
-}
-
-// HasImagesForEnv checks if any Docker images exist with a tag suffix
-// matching the specified environment name (e.g., ":prod").
-func HasImagesForEnv(ctx context.Context, client DockerClient, env string) (bool, error) {
-	images, err := client.ImageList(ctx, image.ListOptions{All: true})
-	if err != nil {
-		return false, fmt.Errorf("list images: %w", err)
-	}
-
-	needle := ":" + env
-	for _, img := range images {
-		for _, tag := range img.RepoTags {
-			if tag == "<none>:<none>" {
-				continue
-			}
-			if strings.HasSuffix(tag, needle) {
-				return true, nil
-			}
-		}
-	}
-	return false, nil
 }

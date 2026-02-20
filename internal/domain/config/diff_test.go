@@ -57,14 +57,6 @@ func TestDiffSnapshots(t *testing.T) {
 	}
 }
 
-func TestFormatCountsLabel(t *testing.T) {
-	got := FormatCountsLabel(Counts{Added: 2, Updated: 1, Removed: 3, Total: 8})
-	want := "new 2 / updated 1 / removed 3 (total 8)"
-	if got != want {
-		t.Fatalf("FormatCountsLabel() = %q, want %q", got, want)
-	}
-}
-
 func TestFormatTemplateCounts(t *testing.T) {
 	t.Run("normal", func(t *testing.T) {
 		got := FormatTemplateCounts(Counts{Added: 1, Updated: 2, Total: 10})

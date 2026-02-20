@@ -109,34 +109,15 @@ func TestConfigDiffSnapshots(t *testing.T) {
 	}
 }
 
-func TestEmitConfigMergeSummaryRendersRows(t *testing.T) {
-	capture := &captureUI{}
-	diff := summaryDiffFixture("config-merge")
-
-	emitConfigMergeSummary(capture, "/tmp/config", diff)
-	if capture.blockCalls != 1 {
-		t.Fatalf("expected one block call, got %d", capture.blockCalls)
-	}
-	if capture.blockEmoji != "🧩" || capture.blockTitle != "Config merge summary" {
-		t.Fatalf("unexpected block metadata: emoji=%q title=%q", capture.blockEmoji, capture.blockTitle)
-	}
-	if !hasRow(capture.blockRows, "Staging config") {
-		t.Fatalf("expected staging config row, got %#v", capture.blockRows)
-	}
-	if !hasRow(capture.blockRows, "Resources.dynamodb") {
-		t.Fatalf("expected dynamodb row, got %#v", capture.blockRows)
-	}
-	if hasRow(capture.blockRows, "Resources.s3") {
-		t.Fatalf("did not expect zero-count s3 row, got %#v", capture.blockRows)
-	}
-	if !hasRow(capture.blockRows, "Resources.layers") {
-		t.Fatalf("expected layers row, got %#v", capture.blockRows)
-	}
-}
-
 func TestEmitTemplateDeltaSummaryRendersRows(t *testing.T) {
 	capture := &captureUI{}
-	diff := summaryDiffFixture("template-delta")
+	diff := summaryDiff(
+		domaincfg.Counts{Added: 1, Updated: 1, Removed: 0, Total: 2},
+		domaincfg.Counts{Added: 0, Updated: 1, Removed: 0, Total: 1},
+		domaincfg.Counts{Added: 0, Updated: 0, Removed: 0, Total: 0},
+		domaincfg.Counts{Added: 1, Updated: 0, Removed: 0, Total: 1},
+		domaincfg.Counts{Added: 0, Updated: 0, Removed: 0, Total: 0},
+	)
 
 	emitTemplateDeltaSummary(capture, "/tmp/template-config", diff)
 	if capture.blockCalls != 1 {
@@ -207,30 +188,6 @@ func summaryDiff(
 			"layers":   layers,
 		},
 	}
-}
-
-func summaryDiffFixture(name string) domaincfg.Diff {
-	if name == "config-merge" {
-		return summaryDiff(
-			domaincfg.Counts{Added: 1, Updated: 2, Removed: 3, Total: 4},
-			domaincfg.Counts{Added: 5, Updated: 6, Removed: 7, Total: 8},
-			domaincfg.Counts{Added: 1, Updated: 0, Removed: 0, Total: 1},
-			domaincfg.Counts{Added: 0, Updated: 0, Removed: 0, Total: 0},
-			domaincfg.Counts{Added: 0, Updated: 1, Removed: 0, Total: 1},
-		)
-	}
-	if name == "template-delta" {
-		return domaincfg.Diff{
-			Functions: domaincfg.Counts{Added: 1, Updated: 1, Removed: 0, Total: 2},
-			Routes:    domaincfg.Counts{Added: 0, Updated: 1, Removed: 0, Total: 1},
-			Resources: map[string]domaincfg.Counts{
-				"dynamodb": {Added: 0, Updated: 0, Removed: 0, Total: 0},
-				"s3":       {Added: 1, Updated: 0, Removed: 0, Total: 1},
-				"layers":   {Added: 0, Updated: 0, Removed: 0, Total: 0},
-			},
-		}
-	}
-	panic("unknown summary diff fixture: " + name)
 }
 
 type captureUI struct {
