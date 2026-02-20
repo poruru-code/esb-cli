@@ -206,7 +206,7 @@ func (c *deployCommand) runWithOverrides(
 	if err := c.runGeneratePhase(workflow, inputs, flags, runConfig); err != nil {
 		return err
 	}
-	manifestPath, err := c.writeArtifactManifest(inputs, flags, runConfig.tag)
+	manifestPath, err := c.writeArtifactManifest(inputs, flags)
 	if err != nil {
 		return err
 	}
@@ -302,7 +302,6 @@ func (c *deployCommand) renderGeneratePlanBlock(
 func (c *deployCommand) writeArtifactManifest(
 	inputs deployInputs,
 	flags DeployCmd,
-	tag string,
 ) (string, error) {
 	manifestPath, err := writeDeployArtifactManifest(
 		inputs,
