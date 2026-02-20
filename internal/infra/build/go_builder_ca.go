@@ -55,7 +55,10 @@ func ensureRootCAPath(path string) (string, error) {
 	}
 	info, err := os.Stat(path)
 	if err != nil {
-		return "", fmt.Errorf("root CA not found at %s (run mise run setup:certs)", path)
+		return "", fmt.Errorf(
+			"root CA not found at %s (prepare certificates in the target ESB repository, e.g. `mise run setup`)",
+			path,
+		)
 	}
 	if info.IsDir() {
 		return "", fmt.Errorf("root CA path is a directory: %s", path)
