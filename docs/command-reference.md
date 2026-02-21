@@ -58,9 +58,8 @@ Flags:
       --env-file=STRING            Path to .env file
 
   -m, --mode=STRING                Runtime mode (docker/containerd)
-  -o, --output=STRING              Output directory for generated artifacts
-      --manifest=STRING            Output path for artifact manifest
-                                   (artifact.yml)
+      --artifact-root=STRING       Artifact root directory (artifact.yml +
+                                   artifacts/)
   -p, --project=STRING             Compose project name to target
       --compose-file=COMPOSE-FILE,...
                                    Compose file(s) to use (repeatable or
@@ -120,9 +119,8 @@ Flags:
       --env-file=STRING            Path to .env file
 
   -m, --mode=STRING                Runtime mode (docker/containerd)
-  -o, --output=STRING              Output directory for generated artifacts
-      --manifest=STRING            Output path for artifact manifest
-                                   (artifact.yml)
+      --artifact-root=STRING       Artifact root directory (artifact.yml +
+                                   artifacts/)
   -p, --project=STRING             Compose project name to target
       --compose-file=COMPOSE-FILE,...
                                    Compose file(s) to use (repeatable or

@@ -52,13 +52,12 @@ type deployTemplateOverrideInputs struct {
 }
 
 type templateInputResolveContext struct {
-	deployFlags    DeployCmd
-	repoRoot       string
-	templatePaths  []string
-	prevTemplates  map[string]deployTemplateInput
-	outputKeyCount map[string]int
-	envChanged     bool
-	overrides      deployTemplateOverrideInputs
+	deployFlags   DeployCmd
+	repoRoot      string
+	artifactRoot  string
+	templatePaths []string
+	prevTemplates map[string]deployTemplateInput
+	overrides     deployTemplateOverrideInputs
 }
 
 func resolveDeployInputs(cli CLI, deps Dependencies) (deployInputs, error) {
@@ -107,9 +106,12 @@ func (r deployInputsResolver) resolveInputIteration(
 	if err != nil {
 		return deployInputs{}, err
 	}
-	envChanged := selectedEnv.Value != runtimeCtx.prevEnv
 
 	mode, err := r.resolveMode(cli, runtimeCtx, storedDefaults, last)
+	if err != nil {
+		return deployInputs{}, err
+	}
+	artifactRoot, err := r.resolveArtifactRoot(cli, last, runtimeCtx.repoRoot, runtimeCtx.composeProject, selectedEnv.Value)
 	if err != nil {
 		return deployInputs{}, err
 	}
@@ -118,8 +120,8 @@ func (r deployInputsResolver) resolveInputIteration(
 		cli,
 		last,
 		runtimeCtx.repoRoot,
+		artifactRoot,
 		templatePaths,
-		envChanged,
 	)
 	if err != nil {
 		return deployInputs{}, err
@@ -131,6 +133,7 @@ func (r deployInputsResolver) resolveInputIteration(
 
 	return deployInputs{
 		ProjectDir:    runtimeCtx.repoRoot,
+		ArtifactRoot:  artifactRoot,
 		TargetStack:   runtimeCtx.selectedStack.Name,
 		Env:           selectedEnv.Value,
 		EnvSource:     selectedEnv.Source,
@@ -391,28 +394,43 @@ func (r deployInputsResolver) resolveMode(
 	}
 }
 
+func (r deployInputsResolver) resolveArtifactRoot(
+	cli CLI,
+	last deployInputs,
+	repoRoot string,
+	project string,
+	env string,
+) (string, error) {
+	prev := strings.TrimSpace(last.ArtifactRoot)
+	return resolveDeployArtifactRoot(
+		cli.Deploy.ArtifactRoot,
+		r.isTTY,
+		r.prompter,
+		prev,
+		repoRoot,
+		project,
+		env,
+	)
+}
+
 func (r deployInputsResolver) resolveTemplateInputs(
 	cli CLI,
 	last deployInputs,
 	repoRoot string,
+	artifactRoot string,
 	templatePaths []string,
-	envChanged bool,
 ) ([]deployTemplateInput, error) {
-	if len(templatePaths) > 1 && strings.TrimSpace(cli.Deploy.Output) != "" {
-		return nil, errMultipleTemplateOutput
-	}
 	overrides, err := parseDeployTemplateOverrideInputs(cli.Deploy)
 	if err != nil {
 		return nil, err
 	}
 	ctx := templateInputResolveContext{
-		deployFlags:    cli.Deploy,
-		repoRoot:       repoRoot,
-		templatePaths:  templatePaths,
-		prevTemplates:  buildPreviousTemplateInputMap(last.Templates),
-		outputKeyCount: map[string]int{},
-		envChanged:     envChanged,
-		overrides:      overrides,
+		deployFlags:   cli.Deploy,
+		repoRoot:      repoRoot,
+		artifactRoot:  artifactRoot,
+		templatePaths: templatePaths,
+		prevTemplates: buildPreviousTemplateInputMap(last.Templates),
+		overrides:     overrides,
 	}
 	templateInputs := make([]deployTemplateInput, 0, len(templatePaths))
 	for _, templatePath := range templatePaths {
@@ -455,10 +473,6 @@ func (r deployInputsResolver) resolveSingleTemplateInput(
 	ctx templateInputResolveContext,
 ) (deployTemplateInput, error) {
 	storedTemplate := loadDeployDefaults(ctx.repoRoot, templatePath)
-	outputDir, err := r.resolveTemplateOutputDir(templatePath, ctx, storedTemplate)
-	if err != nil {
-		return deployTemplateInput{}, err
-	}
 
 	prevParams := resolvePreviousTemplateParameters(
 		templatePath,
@@ -506,6 +520,11 @@ func (r deployInputsResolver) resolveSingleTemplateInput(
 	if err != nil {
 		return deployTemplateInput{}, err
 	}
+	artifactID, err := deriveTemplateArtifactID(ctx.repoRoot, templatePath, params)
+	if err != nil {
+		return deployTemplateInput{}, err
+	}
+	outputDir := deriveTemplateArtifactOutputDir(ctx.artifactRoot, artifactID)
 
 	return deployTemplateInput{
 		TemplatePath:  templatePath,
@@ -540,30 +559,6 @@ func mergeTemplateImageSources(
 	return merged
 }
 
-func (r deployInputsResolver) resolveTemplateOutputDir(
-	templatePath string,
-	ctx templateInputResolveContext,
-	storedTemplate storedDeployDefaults,
-) (string, error) {
-	if len(ctx.templatePaths) > 1 {
-		return deriveMultiTemplateOutputDir(templatePath, ctx.outputKeyCount), nil
-	}
-	prevOutput := resolvePreviousTemplateOutput(
-		templatePath,
-		ctx.prevTemplates,
-		storedTemplate.OutputDir,
-	)
-	if ctx.envChanged && strings.TrimSpace(ctx.deployFlags.Output) == "" {
-		prevOutput = ""
-	}
-	return resolveDeployOutput(
-		ctx.deployFlags.Output,
-		r.isTTY,
-		r.prompter,
-		prevOutput,
-	)
-}
-
 func (r deployInputsResolver) resolveComposeFiles(
 	cli CLI,
 	last deployInputs,
@@ -576,20 +571,6 @@ func (r deployInputsResolver) resolveComposeFiles(
 		last.ComposeFiles,
 		repoRoot,
 	)
-}
-
-func resolvePreviousTemplateOutput(
-	templatePath string,
-	prevTemplates map[string]deployTemplateInput,
-	storedOutput string,
-) string {
-	if prev, ok := prevTemplates[templatePath]; ok && strings.TrimSpace(prev.OutputDir) != "" {
-		return prev.OutputDir
-	}
-	if strings.TrimSpace(storedOutput) != "" {
-		return storedOutput
-	}
-	return ""
 }
 
 func resolvePreviousTemplateParameters(

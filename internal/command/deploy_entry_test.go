@@ -194,10 +194,11 @@ func TestDeployCommandRunBuildsAllTemplatesAndRunsProvisionerOnlyOnLast(t *testi
 
 	err := cmd.runWithOverrides(
 		deployInputs{
-			ProjectDir: tmp,
-			Env:        "dev",
-			Mode:       "docker",
-			Project:    "esb-dev",
+			ProjectDir:   tmp,
+			ArtifactRoot: filepath.Join(tmp, "artifact-root"),
+			Env:          "dev",
+			Mode:         "docker",
+			Project:      "esb-dev",
 			Templates: []deployTemplateInput{
 				{
 					TemplatePath:  templateA,
@@ -233,7 +234,7 @@ func TestDeployCommandRunBuildsAllTemplatesAndRunsProvisionerOnlyOnLast(t *testi
 		t.Fatalf("expected default noDeps=true, got %#v", provisioner.noDepsArgs)
 	}
 
-	manifestPath := resolveDeployArtifactManifestPath(tmp, "esb-dev", "dev")
+	manifestPath := filepath.Join(tmp, "artifact-root", artifactManifestFileName)
 	manifest, err := artifactcore.ReadArtifactManifest(manifestPath)
 	if err != nil {
 		t.Fatalf("read artifact manifest: %v", err)
@@ -282,11 +283,15 @@ func TestDeployCommandRunWithDepsDisablesNoDeps(t *testing.T) {
 
 	err := cmd.runWithOverrides(
 		deployInputs{
-			ProjectDir: tmp,
-			Env:        "dev",
-			Mode:       "docker",
-			Project:    "esb-dev",
-			Templates:  []deployTemplateInput{{TemplatePath: templatePath}},
+			ProjectDir:   tmp,
+			ArtifactRoot: filepath.Join(tmp, "artifact-root"),
+			Env:          "dev",
+			Mode:         "docker",
+			Project:      "esb-dev",
+			Templates: []deployTemplateInput{{
+				TemplatePath: templatePath,
+				OutputDir:    filepath.Join(tmp, "artifact-root", "artifacts", "artifact-a"),
+			}},
 		},
 		DeployCmd{WithDeps: true},
 		deployRunOverrides{},
@@ -326,11 +331,15 @@ func TestDeployCommandRunAllowsRenderOnlyGenerate(t *testing.T) {
 
 	err := cmd.runWithOverrides(
 		deployInputs{
-			ProjectDir: tmp,
-			Env:        "dev",
-			Mode:       "docker",
-			Project:    "esb-dev",
-			Templates:  []deployTemplateInput{{TemplatePath: templatePath}},
+			ProjectDir:   tmp,
+			ArtifactRoot: filepath.Join(tmp, "artifact-root"),
+			Env:          "dev",
+			Mode:         "docker",
+			Project:      "esb-dev",
+			Templates: []deployTemplateInput{{
+				TemplatePath: templatePath,
+				OutputDir:    filepath.Join(tmp, "artifact-root", "artifacts", "artifact-a"),
+			}},
 		},
 		DeployCmd{BuildOnly: true},
 		deployRunOverrides{
@@ -374,11 +383,15 @@ func TestDeployCommandRunBuildOnlyRejectsWithDeps(t *testing.T) {
 
 	err := cmd.runWithOverrides(
 		deployInputs{
-			ProjectDir: tmp,
-			Env:        "dev",
-			Mode:       "docker",
-			Project:    "esb-dev",
-			Templates:  []deployTemplateInput{{TemplatePath: templatePath}},
+			ProjectDir:   tmp,
+			ArtifactRoot: filepath.Join(tmp, "artifact-root"),
+			Env:          "dev",
+			Mode:         "docker",
+			Project:      "esb-dev",
+			Templates: []deployTemplateInput{{
+				TemplatePath: templatePath,
+				OutputDir:    filepath.Join(tmp, "artifact-root", "artifacts", "artifact-a"),
+			}},
 		},
 		DeployCmd{BuildOnly: true, WithDeps: true},
 		deployRunOverrides{},
@@ -413,11 +426,15 @@ func TestDeployCommandRunBuildOnlyRejectsSecretEnv(t *testing.T) {
 
 	err := cmd.runWithOverrides(
 		deployInputs{
-			ProjectDir: tmp,
-			Env:        "dev",
-			Mode:       "docker",
-			Project:    "esb-dev",
-			Templates:  []deployTemplateInput{{TemplatePath: templatePath}},
+			ProjectDir:   tmp,
+			ArtifactRoot: filepath.Join(tmp, "artifact-root"),
+			Env:          "dev",
+			Mode:         "docker",
+			Project:      "esb-dev",
+			Templates: []deployTemplateInput{{
+				TemplatePath: templatePath,
+				OutputDir:    filepath.Join(tmp, "artifact-root", "artifacts", "artifact-a"),
+			}},
 		},
 		DeployCmd{BuildOnly: true, SecretEnv: "secret.env"},
 		deployRunOverrides{},

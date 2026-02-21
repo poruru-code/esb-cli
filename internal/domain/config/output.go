@@ -30,5 +30,5 @@ func ResolveOutputSummary(templatePath, outputDir, env string) string {
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(baseDir, path)
 	}
-	return filepath.Join(filepath.Clean(path), env)
+	return filepath.Clean(path)
 }

@@ -5,11 +5,9 @@ package command
 
 import (
 	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 
-	domaincfg "github.com/poruru-code/esb-cli/internal/domain/config"
 	"github.com/poruru-code/esb-cli/internal/infra/interaction"
 	"github.com/poruru-code/esb-cli/internal/infra/staging"
 )
@@ -39,13 +37,26 @@ func confirmDeployInputs(inputs deployInputs, isTTY bool, prompter interaction.P
 		projectLine,
 		envLine,
 		fmt.Sprintf("Mode: %s", inputs.Mode),
+		fmt.Sprintf("Artifact root: %s", inputs.ArtifactRoot),
 	)
 	if len(inputs.Templates) == 1 {
-		summaryLines = appendTemplateSummaryLines(summaryLines, inputs.Templates[0], inputs.Env, inputs.Project)
+		summaryLines = appendTemplateSummaryLines(
+			summaryLines,
+			inputs.Templates[0],
+			inputs.ProjectDir,
+			inputs.Env,
+			inputs.Project,
+		)
 	} else if len(inputs.Templates) > 1 {
 		summaryLines = append(summaryLines, fmt.Sprintf("Templates: %d", len(inputs.Templates)))
 		for _, tpl := range inputs.Templates {
-			summaryLines = appendTemplateSummaryLines(summaryLines, tpl, inputs.Env, inputs.Project)
+			summaryLines = appendTemplateSummaryLines(
+				summaryLines,
+				tpl,
+				inputs.ProjectDir,
+				inputs.Env,
+				inputs.Project,
+			)
 		}
 	}
 
@@ -67,18 +78,17 @@ func confirmDeployInputs(inputs deployInputs, isTTY bool, prompter interaction.P
 func appendTemplateSummaryLines(
 	lines []string,
 	tpl deployTemplateInput,
+	projectDir string,
 	envName string,
 	project string,
 ) []string {
-	output := domaincfg.ResolveOutputSummary(tpl.TemplatePath, tpl.OutputDir, envName)
-	templateBase := filepath.Dir(tpl.TemplatePath)
+	output := resolveDeployOutputSummary(projectDir, tpl.OutputDir, envName)
 	stagingDir := "<unresolved>"
 	if dir, err := staging.ConfigDir(tpl.TemplatePath, project, envName); err == nil {
 		stagingDir = dir
 	}
 	lines = append(lines,
 		fmt.Sprintf("Template: %s", tpl.TemplatePath),
-		fmt.Sprintf("Template base: %s", templateBase),
 		fmt.Sprintf("Output: %s", output),
 		fmt.Sprintf("Staging config: %s", stagingDir),
 	)

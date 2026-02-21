@@ -4,6 +4,7 @@
 package command
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/poruru-code/esb-cli/internal/constants"
@@ -96,41 +97,91 @@ func TestResolveDeployEnvFromStackUsesRuntimeResolver(t *testing.T) {
 	assertNoPromptCall(t, prompter)
 }
 
-func TestResolveDeployOutputInteractiveUsesPreviousDefault(t *testing.T) {
+func TestResolveDeployArtifactRootInteractiveUsesPreviousDefault(t *testing.T) {
+	repoRoot := t.TempDir()
 	prompter := &recordingPrompter{inputValue: ""}
-	got, err := resolveDeployOutput(
+	got, err := resolveDeployArtifactRoot(
 		"",
 		true,
 		prompter,
-		".esb/custom",
+		filepath.Join(repoRoot, "artifacts", "custom"),
+		repoRoot,
+		"esb-dev",
+		"dev",
 	)
 	if err != nil {
-		t.Fatalf("resolve deploy output: %v", err)
+		t.Fatalf("resolve deploy artifact root: %v", err)
 	}
-	if got != ".esb/custom" {
-		t.Fatalf("expected previous output .esb/custom, got %q", got)
+	want := filepath.Join(repoRoot, "artifacts", "custom")
+	if got != want {
+		t.Fatalf("expected previous artifact root %q, got %q", want, got)
 	}
 	if prompter.inputCalls != 1 {
 		t.Fatalf("expected one prompt call, got %d", prompter.inputCalls)
 	}
 }
 
-func TestResolveDeployOutputInteractiveUsesAutoDefault(t *testing.T) {
+func TestResolveDeployArtifactRootInteractiveUsesDefaultLayout(t *testing.T) {
+	repoRoot := t.TempDir()
 	prompter := &recordingPrompter{inputValue: ""}
-	got, err := resolveDeployOutput(
+	got, err := resolveDeployArtifactRoot(
 		"",
 		true,
 		prompter,
 		"",
+		repoRoot,
+		"esb-dev",
+		"dev",
 	)
 	if err != nil {
-		t.Fatalf("resolve deploy output: %v", err)
+		t.Fatalf("resolve deploy artifact root: %v", err)
 	}
-	if got != "" {
-		t.Fatalf("expected auto output (empty), got %q", got)
+	want := filepath.Join(repoRoot, "artifacts", "esb-dev")
+	if got != want {
+		t.Fatalf("expected default artifact root %q, got %q", want, got)
 	}
 	if prompter.inputCalls != 1 {
 		t.Fatalf("expected one prompt call, got %d", prompter.inputCalls)
+	}
+}
+
+func TestResolveDeployArtifactRootWithoutTTYUsesDefault(t *testing.T) {
+	repoRoot := t.TempDir()
+	got, err := resolveDeployArtifactRoot(
+		"",
+		false,
+		nil,
+		"",
+		repoRoot,
+		"esb-dev",
+		"dev",
+	)
+	if err != nil {
+		t.Fatalf("resolve deploy artifact root: %v", err)
+	}
+	want := filepath.Join(repoRoot, "artifacts", "esb-dev")
+	if got != want {
+		t.Fatalf("expected default artifact root %q, got %q", want, got)
+	}
+}
+
+func TestResolveDeployArtifactRootWithoutTTYUsesProjectEnvScope(t *testing.T) {
+	repoRoot := t.TempDir()
+	got, err := resolveDeployArtifactRoot(
+		"",
+		false,
+		nil,
+		"",
+		repoRoot,
+		"esb",
+		"dev",
+	)
+	if err != nil {
+		t.Fatalf("resolve deploy artifact root: %v", err)
+	}
+	want := filepath.Join(repoRoot, "artifacts", "esb-dev")
+	if got != want {
+		t.Fatalf("expected default artifact root %q, got %q", want, got)
 	}
 }
 
@@ -162,7 +213,7 @@ func TestResolveDeployProjectInteractiveUsesPreviousDefault(t *testing.T) {
 	}
 }
 
-func TestResolveDeployComposeFilesInteractiveUsesAutoDefault(t *testing.T) {
+func TestResolveDeployComposeFilesDefaultsToAutoWithoutPrompt(t *testing.T) {
 	prompter := &recordingPrompter{inputValue: ""}
 	got, err := resolveDeployComposeFiles(nil, true, prompter, nil, "/tmp")
 	if err != nil {
@@ -171,12 +222,12 @@ func TestResolveDeployComposeFilesInteractiveUsesAutoDefault(t *testing.T) {
 	if got != nil {
 		t.Fatalf("expected nil compose files for auto, got %v", got)
 	}
-	if prompter.inputCalls != 1 {
-		t.Fatalf("expected one prompt call, got %d", prompter.inputCalls)
+	if prompter.inputCalls != 0 {
+		t.Fatalf("expected no prompt calls, got %d", prompter.inputCalls)
 	}
 }
 
-func TestResolveDeployComposeFilesInteractiveUsesPrevious(t *testing.T) {
+func TestResolveDeployComposeFilesUsesPreviousWithoutPrompt(t *testing.T) {
 	baseDir := t.TempDir()
 	previous := []string{"docker-compose.yml", "./docker-compose.override.yml"}
 	prompter := &recordingPrompter{inputValue: ""}
@@ -188,15 +239,21 @@ func TestResolveDeployComposeFilesInteractiveUsesPrevious(t *testing.T) {
 	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("unexpected compose files: got=%v want=%v", got, want)
 	}
-	if prompter.inputCalls != 1 {
-		t.Fatalf("expected one prompt call, got %d", prompter.inputCalls)
+	if prompter.inputCalls != 0 {
+		t.Fatalf("expected no prompt calls, got %d", prompter.inputCalls)
 	}
 }
 
-func TestResolveDeployComposeFilesInteractiveParsesCommaSeparatedInput(t *testing.T) {
+func TestResolveDeployComposeFilesUsesExplicitValuesWithoutPrompt(t *testing.T) {
 	baseDir := t.TempDir()
-	prompter := &recordingPrompter{inputValue: "docker-compose.yml, docker-compose.prod.yml"}
-	got, err := resolveDeployComposeFiles(nil, true, prompter, nil, baseDir)
+	prompter := &recordingPrompter{inputValue: ""}
+	got, err := resolveDeployComposeFiles(
+		[]string{"docker-compose.yml", "docker-compose.prod.yml"},
+		true,
+		prompter,
+		nil,
+		baseDir,
+	)
 	if err != nil {
 		t.Fatalf("resolve compose files: %v", err)
 	}
@@ -207,8 +264,8 @@ func TestResolveDeployComposeFilesInteractiveParsesCommaSeparatedInput(t *testin
 	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("unexpected compose files: got=%v want=%v", got, want)
 	}
-	if prompter.inputCalls != 1 {
-		t.Fatalf("expected one prompt call, got %d", prompter.inputCalls)
+	if prompter.inputCalls != 0 {
+		t.Fatalf("expected no prompt calls, got %d", prompter.inputCalls)
 	}
 }
 

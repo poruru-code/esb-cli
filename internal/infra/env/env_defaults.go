@@ -72,6 +72,7 @@ func ApplyRuntimeEnv(ctx state.Context, resolver func(string) (string, error)) e
 	if err := applyRegistryDefaults(ctx.Mode); err != nil {
 		return err
 	}
+	ctx.Env = env
 	if err := applyConfigDirEnv(ctx); err != nil {
 		return err
 	}

@@ -18,13 +18,18 @@ import (
 // ComposeProjectKey returns a filesystem-safe staging key for the provided
 // compose project, falling back to a predictable value when the input is empty.
 func ComposeProjectKey(composeProject, env string) string {
-	if key := strings.TrimSpace(composeProject); key != "" {
-		return key
+	projectKey := strings.TrimSpace(composeProject)
+	envKey := strings.ToLower(strings.TrimSpace(env))
+	if projectKey == "" {
+		projectKey = meta.Slug
 	}
-	if env = strings.TrimSpace(env); env != "" {
-		return fmt.Sprintf("%s-%s", meta.Slug, strings.ToLower(env))
+	if envKey == "" {
+		return projectKey
 	}
-	return meta.Slug
+	if strings.HasSuffix(strings.ToLower(projectKey), "-"+envKey) {
+		return projectKey
+	}
+	return fmt.Sprintf("%s-%s", projectKey, envKey)
 }
 
 // CacheKey returns a stable key for staging caches based on project + env.
@@ -64,11 +69,7 @@ func BaseDir(templatePath, composeProject, env string) (string, error) {
 		return "", err
 	}
 	projectKey := ComposeProjectKey(composeProject, env)
-	envKey := strings.ToLower(strings.TrimSpace(env))
-	if envKey == "" {
-		envKey = "default"
-	}
-	return filepath.Join(root, projectKey, envKey), nil
+	return filepath.Join(root, projectKey), nil
 }
 
 // ConfigDir returns the absolute staging config directory used by runtime code.

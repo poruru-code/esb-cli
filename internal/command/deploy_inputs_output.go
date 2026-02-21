@@ -1,6 +1,6 @@
 // Where: cli/internal/command/deploy_inputs_output.go
-// What: Output directory resolution helpers for deploy inputs.
-// Why: Keep output path behavior isolated and easier to reason about.
+// What: Artifact root and per-template output resolution helpers for deploy inputs.
+// Why: Keep output path behavior isolated and deterministic in single-root mode.
 package command
 
 import (
@@ -9,60 +9,94 @@ import (
 	"strings"
 
 	"github.com/poruru-code/esb-cli/internal/infra/interaction"
-	"github.com/poruru-code/esb-cli/internal/meta"
+	"github.com/poruru-code/esb/pkg/artifactcore"
 )
 
-func resolveDeployOutput(
+func resolveDeployArtifactRoot(
 	value string,
 	isTTY bool,
 	prompter interaction.Prompter,
 	previous string,
+	projectDir string,
+	project string,
+	env string,
 ) (string, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed != "" {
-		return trimmed, nil
+		return normalizeArtifactRootPath(trimmed, projectDir), nil
+	}
+	defaultPath := strings.TrimSpace(previous)
+	if defaultPath == "" {
+		defaultPath = defaultDeployArtifactRoot(projectDir, project, env)
 	}
 	if !isTTY || prompter == nil {
-		return "", nil
-	}
-	if prev := strings.TrimSpace(previous); prev != "" {
-		input, err := prompter.Input(
-			fmt.Sprintf("Output directory (default: %s)", prev),
-			[]string{prev},
-		)
-		if err != nil {
-			return "", fmt.Errorf("prompt output directory: %w", err)
-		}
-		if selected := strings.TrimSpace(input); selected != "" {
-			return selected, nil
-		}
-		return prev, nil
+		return normalizeArtifactRootPath(defaultPath, projectDir), nil
 	}
 	input, err := prompter.Input(
-		"Output directory (default: auto)",
-		[]string{"auto"},
+		fmt.Sprintf("Artifact root directory (default: %s)", defaultPath),
+		[]string{defaultPath},
 	)
 	if err != nil {
-		return "", fmt.Errorf("prompt output directory: %w", err)
+		return "", fmt.Errorf("prompt artifact root directory: %w", err)
 	}
 	selected := strings.TrimSpace(input)
-	if selected == "" || strings.EqualFold(selected, "auto") {
-		return "", nil
+	if selected == "" {
+		return normalizeArtifactRootPath(defaultPath, projectDir), nil
 	}
-	return selected, nil
+	return normalizeArtifactRootPath(selected, projectDir), nil
 }
 
-func deriveMultiTemplateOutputDir(templatePath string, counts map[string]int) string {
-	base := strings.TrimSpace(filepath.Base(templatePath))
-	stem := strings.TrimSuffix(base, filepath.Ext(base))
-	stem = strings.TrimSpace(stem)
-	if stem == "" {
-		stem = "template"
+func defaultDeployArtifactRoot(projectDir, project, env string) string {
+	root := strings.TrimSpace(projectDir)
+	if root == "" {
+		root = "."
 	}
-	count := counts[stem]
-	counts[stem] = count + 1
-	if count > 0 {
-		stem = fmt.Sprintf("%s-%d", stem, count+1)
+	projectSegment := sanitizePathSegment(project)
+	envSegment := sanitizePathSegment(env)
+	scope := projectSegment
+	if !strings.HasSuffix(scope, "-"+envSegment) {
+		scope = scope + "-" + envSegment
 	}
-	return filepath.Join(meta.OutputDir, stem)
+	return filepath.Join(
+		root,
+		"artifacts",
+		scope,
+	)
+}
+
+func normalizeArtifactRootPath(pathValue, projectDir string) string {
+	candidate := filepath.Clean(strings.TrimSpace(pathValue))
+	if !filepath.IsAbs(candidate) {
+		base := strings.TrimSpace(projectDir)
+		if base == "" {
+			base = "."
+		}
+		candidate = filepath.Join(base, candidate)
+	}
+	return filepath.Clean(candidate)
+}
+
+func deriveTemplateArtifactID(
+	projectDir string,
+	templatePath string,
+	parameters map[string]string,
+) (string, error) {
+	templateSHA, err := fileSHA256(templatePath)
+	if err != nil {
+		return "", fmt.Errorf("hash template %s: %w", templatePath, err)
+	}
+	sourcePath := normalizeSourceTemplatePath(projectDir, templatePath)
+	return artifactcore.ComputeArtifactID(sourcePath, parameters, templateSHA), nil
+}
+
+func deriveTemplateArtifactOutputDir(artifactRoot, artifactID string) string {
+	trimmedRoot := strings.TrimSpace(artifactRoot)
+	if trimmedRoot == "" {
+		return ""
+	}
+	trimmedID := strings.TrimSpace(artifactID)
+	if trimmedID == "" {
+		trimmedID = "artifact"
+	}
+	return filepath.Join(trimmedRoot, "entries", trimmedID)
 }

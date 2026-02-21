@@ -121,7 +121,7 @@ func TestGoBuilderBuildGeneratesAndBuilds(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	expectedOutput := filepath.Join(projectDir, meta.OutputDir, "staging")
+	expectedOutput := filepath.Join(projectDir, meta.OutputDir)
 	if gotCfg.Paths.OutputDir != expectedOutput {
 		t.Fatalf("unexpected output dir: %s", gotCfg.Paths.OutputDir)
 	}
@@ -298,7 +298,7 @@ func TestGoBuilderBuildRenderOnlySkipsImageBuilds(t *testing.T) {
 	if got := os.Getenv(constants.EnvConfigDir); got != "" {
 		t.Fatalf("render-only build must not set %s, got %q", constants.EnvConfigDir, got)
 	}
-	stagingDir := filepath.Join(repoRoot, meta.HomeDir, "staging", "demo-staging", "staging", "config")
+	stagingDir := filepath.Join(repoRoot, meta.HomeDir, "staging", "demo-staging", "config")
 	if _, err := os.Stat(filepath.Join(stagingDir, "functions.yml")); !os.IsNotExist(err) {
 		if err != nil {
 			t.Fatalf("stat staging functions.yml: %v", err)

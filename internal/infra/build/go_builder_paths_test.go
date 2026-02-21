@@ -17,7 +17,13 @@ func TestResolveComposeProjectName(t *testing.T) {
 			name:        "uses explicit project name",
 			projectName: "custom-project",
 			env:         "staging",
-			want:        "custom-project",
+			want:        "custom-project-staging",
+		},
+		{
+			name:        "does not duplicate env suffix",
+			projectName: "custom-project-staging",
+			env:         "staging",
+			want:        "custom-project-staging",
 		},
 		{
 			name:        "falls back to brand slug and lower env",

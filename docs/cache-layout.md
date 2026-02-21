@@ -11,7 +11,8 @@ Why: Keep staging paths and cleanup rules explicit.
 このドキュメントは、本基盤の deploy/build staging データのキャッシュ構成を定義します。
 グローバル設定は **リポジトリルート配下の `.<brand>`** に保持し、deploy のマージ結果と
 staging アーティファクトも同じルート配下に配置します。staging のパスは
-compose project + env で決まり、ハッシュはパスに使用しません。
+compose project と env から生成される単一キー（`<compose_project-env>`）で決まり、
+ハッシュはパスに使用しません。
 
 ## 目的
 - グローバルで再利用可能な資産は `<repo_root>/.<brand>` に保持する。
@@ -40,21 +41,22 @@ compose project + env で決まり、ハッシュはパスに使用しません�
 ```
 <repo_root>/.<brand>/
   staging/
-    <compose_project>/
-      <env>/
-        config/
-          functions.yml
-          routing.yml
-          resources.yml
-          .deploy.lock
-        services/
-        pyproject.toml
+    <compose_project_env>/
+      config/
+        functions.yml
+        routing.yml
+        resources.yml
+        .deploy.lock
+      services/
+      pyproject.toml
 ```
 
 注記:
-- `compose_project` は docker compose のプロジェクト名（`PROJECT_NAME`）。未指定時は `esb-<env>` を使用。
+- `compose_project_env` は `compose_project` と `env` から生成されるキーです。
+- `compose_project` が未指定の場合は `esb` を使用します。
 - `env` はデプロイ環境（例: dev, staging）。空の場合は `default`。
 - `env` は小文字に正規化されます。
+- `compose_project` がすでに `-<env>` で終わる場合は重複付与しません。
 - `services/` と `pyproject.toml` はビルド用 staging アーティファクトとして同一パスに配置されます。
 - buildx のキャッシュは export/import（`type=local`）を使用せず、buildx builder（BuildKit）内部キャッシュに任せる。
 
@@ -70,12 +72,12 @@ compose project + env で決まり、ハッシュはパスに使用しません�
 ### プロジェクトキャッシュ（リポジトリルート配下）
 | パス | 内容 | 目的/備考 |
 | --- | --- | --- |
-| `<repo_root>/.<brand>/staging/<compose_project>/<env>/config/functions.yml` | 関数定義 | deploy マージ結果 |
-| `<repo_root>/.<brand>/staging/<compose_project>/<env>/config/routing.yml` | ルーティング定義 | deploy マージ結果 |
-| `<repo_root>/.<brand>/staging/<compose_project>/<env>/config/resources.yml` | リソース定義 | deploy マージ結果 |
-| `<repo_root>/.<brand>/staging/<compose_project>/<env>/config/.deploy.lock` | 排他ロック | 並行実行保護 |
-| `<repo_root>/.<brand>/staging/<compose_project>/<env>/services/` | サービス構成 | staging アーティファクト |
-| `<repo_root>/.<brand>/staging/<compose_project>/<env>/pyproject.toml` | 依存/環境設定 | staging アーティファクト |
+| `<repo_root>/.<brand>/staging/<compose_project_env>/config/functions.yml` | 関数定義 | deploy マージ結果 |
+| `<repo_root>/.<brand>/staging/<compose_project_env>/config/routing.yml` | ルーティング定義 | deploy マージ結果 |
+| `<repo_root>/.<brand>/staging/<compose_project_env>/config/resources.yml` | リソース定義 | deploy マージ結果 |
+| `<repo_root>/.<brand>/staging/<compose_project_env>/config/.deploy.lock` | 排他ロック | 並行実行保護 |
+| `<repo_root>/.<brand>/staging/<compose_project_env>/services/` | サービス構成 | staging アーティファクト |
+| `<repo_root>/.<brand>/staging/<compose_project_env>/pyproject.toml` | 依存/環境設定 | staging アーティファクト |
 
 ## パス解決ルール
 - staging ルートは固定で `<repo_root>/.<brand>/staging` を使用する。
@@ -83,12 +85,13 @@ compose project + env で決まり、ハッシュはパスに使用しません�
 - `compose_project` の決定順:
   1. `PROJECT_NAME` があればその値
   2. `PROJECT_NAME` が空なら `esb-<env>`（`env` が空なら `esb`）
+- 最終パスキーは `<compose_project-env>`（すでに suffix が一致する場合はそのまま）を使用する。
 
 ## クリーンアップ
-- 1つの env を削除:
-  `rm -rf <repo_root>/.<brand>/staging/<compose_project>/<env>`
-- 1つのプロジェクトの env を全部削除:
-  `rm -rf <repo_root>/.<brand>/staging/<compose_project>`
+- 1つの env（=1キー）を削除:
+  `rm -rf <repo_root>/.<brand>/staging/<compose_project_env>`
+- 1つのプロジェクトに紐づくキーを削除:
+  `rm -rf <repo_root>/.<brand>/staging/<compose_project>-*`
 
 グローバル設定と証明書は削除対象外。
 

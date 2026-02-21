@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/poruru-code/esb-cli/internal/infra/interaction"
-	"github.com/poruru-code/esb-cli/internal/meta"
 )
 
 type templateResolvePrompter struct {
@@ -273,26 +272,32 @@ func TestResolveDeployTemplatesNormalizesMultipleValues(t *testing.T) {
 	}
 }
 
-func TestDeriveMultiTemplateOutputDirDeduplicatesByStem(t *testing.T) {
-	counts := map[string]int{}
-
-	first := deriveMultiTemplateOutputDir("/tmp/template.e2e.yaml", counts)
-	second := deriveMultiTemplateOutputDir("/tmp/template.e2e.yaml", counts)
-
-	wantFirst := filepath.Join(meta.OutputDir, "template.e2e")
-	wantSecond := filepath.Join(meta.OutputDir, "template.e2e-2")
-	if first != wantFirst {
-		t.Fatalf("unexpected first output dir: %q", first)
-	}
-	if second != wantSecond {
-		t.Fatalf("unexpected second output dir: %q", second)
+func TestDeriveTemplateArtifactOutputDirUsesID(t *testing.T) {
+	root := t.TempDir()
+	got := deriveTemplateArtifactOutputDir(root, "template-e2e-1234abcd")
+	want := filepath.Join(root, "entries", "template-e2e-1234abcd")
+	if got != want {
+		t.Fatalf("expected %q, got %q", want, got)
 	}
 }
 
-func TestDeriveMultiTemplateOutputDirFallsBackToTemplateStem(t *testing.T) {
-	got := deriveMultiTemplateOutputDir("   ", map[string]int{})
-	want := filepath.Join(meta.OutputDir, "template")
-	if got != want {
-		t.Fatalf("expected %q, got %q", want, got)
+func TestDeriveTemplateArtifactIDStable(t *testing.T) {
+	repoRoot := t.TempDir()
+	templatePath := filepath.Join(repoRoot, "template.yaml")
+	if err := os.WriteFile(templatePath, []byte("Resources: {}\n"), 0o600); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+	params := map[string]string{"B": "2", "A": "1"}
+
+	first, err := deriveTemplateArtifactID(repoRoot, templatePath, params)
+	if err != nil {
+		t.Fatalf("deriveTemplateArtifactID() first error = %v", err)
+	}
+	second, err := deriveTemplateArtifactID(repoRoot, templatePath, map[string]string{"A": "1", "B": "2"})
+	if err != nil {
+		t.Fatalf("deriveTemplateArtifactID() second error = %v", err)
+	}
+	if first != second {
+		t.Fatalf("expected stable artifact id, got %q != %q", first, second)
 	}
 }

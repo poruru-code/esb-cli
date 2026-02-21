@@ -25,16 +25,16 @@ func TestInferEnvFromConfigPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve staging root: %v", err)
 	}
-	path := filepath.Join(stagingRoot, "esb-dev", "dev", "config")
+	path := filepath.Join(stagingRoot, "esb-dev", "config")
 	if err := os.MkdirAll(path, 0o755); err != nil {
 		t.Fatalf("mkdir staging path: %v", err)
 	}
 
-	if got := runtimeinfra.InferEnvFromConfigPath(path, stagingRoot); got != "dev" {
+	if got := runtimeinfra.InferEnvFromConfigPath(path, stagingRoot, "esb"); got != "dev" {
 		t.Fatalf("expected env 'dev', got %q", got)
 	}
 
-	if got := runtimeinfra.InferEnvFromConfigPath(filepath.Join(tmp, "config"), stagingRoot); got != "" {
+	if got := runtimeinfra.InferEnvFromConfigPath(filepath.Join(tmp, "config"), stagingRoot, "esb"); got != "" {
 		t.Fatalf("expected empty env for non-staging path, got %q", got)
 	}
 }
@@ -48,9 +48,9 @@ func TestDiscoverStagingEnvs(t *testing.T) {
 		}
 	}
 
-	mk(filepath.Join(root, "demo", "dev", "config"))
-	mk(filepath.Join(root, "demo", "prod", "config"))
-	mk(filepath.Join(root, "other", "staging", "config"))
+	mk(filepath.Join(root, "demo-dev", "config"))
+	mk(filepath.Join(root, "demo-prod", "config"))
+	mk(filepath.Join(root, "other-staging", "config"))
 
 	envs, err := runtimeinfra.DiscoverStagingEnvs(root, "demo")
 	if err != nil {

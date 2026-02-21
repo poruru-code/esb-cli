@@ -150,7 +150,7 @@ func TestResolveTemplateConfigDirResolvesRelativeOutputDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve template config dir: %v", err)
 	}
-	if !strings.HasSuffix(got, filepath.Join("service", "out", "dev", "config")) {
+	if !strings.HasSuffix(got, filepath.Join("service", "out", "config")) {
 		t.Fatalf("unexpected config dir: %q", got)
 	}
 }

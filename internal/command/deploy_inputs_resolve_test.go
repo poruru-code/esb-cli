@@ -539,10 +539,10 @@ Resources:
 		Template: []string{templatePath},
 		EnvFlag:  "dev",
 		Deploy: DeployCmd{
-			Mode:    "docker",
-			Project: "esb-dev",
-			Output:  filepath.Join(repoRoot, ".esb", "out"),
-			NoSave:  true,
+			Mode:         "docker",
+			Project:      "esb-dev",
+			ArtifactRoot: filepath.Join(repoRoot, ".esb", "artifacts", "esb-dev", "dev"),
+			NoSave:       true,
 		},
 	}
 	deps := Dependencies{

@@ -1,0 +1,55 @@
+# Where: fixtures/esb-e2e-docker/image-java-python/template.yaml
+# What: Image/Java E2E subset template.
+# Why: Validate image function runtime resolution with Java packaging in multi-template mode.
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: E2E Image + Java Functions
+
+Resources:
+  JavaEchoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-echo-java
+      Runtime: java21
+      Handler: com.fixtures.echo.Handler::handleRequest
+      CodeUri: ./functions/java/echo/app.jar
+      Layers: []
+      Events:
+        JavaEchoApi:
+          Type: Api
+          Properties:
+            Path: /api/echo-java
+            Method: post
+
+  JavaConnectivityFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-connectivity-java
+      Runtime: java21
+      Handler: com.fixtures.connectivity.Handler::handleRequest
+      CodeUri: ./functions/java/connectivity/app.jar
+      Layers: []
+      Events:
+        JavaConnectivityApi:
+          Type: Api
+          Properties:
+            Path: /api/connectivity/java
+            Method: post
+      Environment:
+        Variables:
+          DYNAMODB_ENDPOINT: "http://${DYNAMODB_ENDPOINT_HOST}:8000"
+          S3_ENDPOINT: "http://${S3_ENDPOINT_HOST}:9000"
+          E2E_TABLE_NAME: "e2e-test-table"
+
+  ImageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-image
+      PackageType: Image
+      ImageUri: public.ecr.aws/r9p4t4p0/esb-e2e-lambda-python:latest
+      Events:
+        ImageApi:
+          Type: Api
+          Properties:
+            Path: /api/image
+            Method: post
