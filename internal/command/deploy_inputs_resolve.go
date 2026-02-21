@@ -402,6 +402,9 @@ func (r deployInputsResolver) resolveArtifactRoot(
 	env string,
 ) (string, error) {
 	prev := strings.TrimSpace(last.ArtifactRoot)
+	if shouldRecomputeArtifactRootDefault(last, repoRoot, project, env) {
+		prev = ""
+	}
 	return resolveDeployArtifactRoot(
 		cli.Deploy.ArtifactRoot,
 		r.isTTY,
@@ -411,6 +414,39 @@ func (r deployInputsResolver) resolveArtifactRoot(
 		project,
 		env,
 	)
+}
+
+func shouldRecomputeArtifactRootDefault(
+	last deployInputs,
+	repoRoot string,
+	project string,
+	env string,
+) bool {
+	prev := strings.TrimSpace(last.ArtifactRoot)
+	if prev == "" {
+		return false
+	}
+	prevProject := strings.TrimSpace(last.Project)
+	prevEnv := strings.TrimSpace(last.Env)
+	if prevProject == "" || prevEnv == "" {
+		return false
+	}
+
+	prevRoot := normalizeArtifactRootPath(prev, repoRoot)
+	prevDefault := normalizeArtifactRootPath(
+		defaultDeployArtifactRoot(repoRoot, prevProject, prevEnv),
+		repoRoot,
+	)
+	// Preserve explicitly customized artifact roots across edit loops.
+	if prevRoot != prevDefault {
+		return false
+	}
+
+	currentDefault := normalizeArtifactRootPath(
+		defaultDeployArtifactRoot(repoRoot, project, env),
+		repoRoot,
+	)
+	return currentDefault != prevDefault
 }
 
 func (r deployInputsResolver) resolveTemplateInputs(

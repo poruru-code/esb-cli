@@ -185,6 +185,42 @@ func TestResolveDeployArtifactRootWithoutTTYUsesProjectEnvScope(t *testing.T) {
 	}
 }
 
+func TestResolveArtifactRootRecomputesDefaultAfterProjectEnvEdit(t *testing.T) {
+	repoRoot := t.TempDir()
+	resolver := deployInputsResolver{}
+	last := deployInputs{
+		ArtifactRoot: filepath.Join(repoRoot, "artifacts", "esb-dev"),
+		Project:      "esb-dev",
+		Env:          "dev",
+	}
+	got, err := resolver.resolveArtifactRoot(CLI{}, last, repoRoot, "esb-prod", "prod")
+	if err != nil {
+		t.Fatalf("resolve artifact root: %v", err)
+	}
+	want := filepath.Join(repoRoot, "artifacts", "esb-prod")
+	if got != want {
+		t.Fatalf("expected recomputed artifact root %q, got %q", want, got)
+	}
+}
+
+func TestResolveArtifactRootKeepsCustomPathAfterProjectEnvEdit(t *testing.T) {
+	repoRoot := t.TempDir()
+	resolver := deployInputsResolver{}
+	last := deployInputs{
+		ArtifactRoot: filepath.Join(repoRoot, "artifacts", "custom"),
+		Project:      "esb-dev",
+		Env:          "dev",
+	}
+	got, err := resolver.resolveArtifactRoot(CLI{}, last, repoRoot, "esb-prod", "prod")
+	if err != nil {
+		t.Fatalf("resolve artifact root: %v", err)
+	}
+	want := filepath.Join(repoRoot, "artifacts", "custom")
+	if got != want {
+		t.Fatalf("expected preserved custom artifact root %q, got %q", want, got)
+	}
+}
+
 func TestResolveDeployProjectInteractiveUsesDefault(t *testing.T) {
 	prompter := &recordingPrompter{inputValue: ""}
 	got, source, err := resolveDeployProject("esb-dev", true, prompter, "", nil)
