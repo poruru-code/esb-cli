@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/poruru-code/esb-cli/internal/meta"
 	"github.com/poruru-code/esb/pkg/artifactcore"
 )
 
@@ -29,33 +28,6 @@ func TestSanitizePathSegmentBlocksDotSegments(t *testing.T) {
 				t.Fatalf("sanitizePathSegment(%q) = %q, want %q", tt.value, got, tt.want)
 			}
 		})
-	}
-}
-
-func TestResolveDeployArtifactManifestPathPreventsTraversalByDotSegments(t *testing.T) {
-	projectDir := t.TempDir()
-	got := resolveDeployArtifactManifestPath(projectDir, "..", "..")
-	want := filepath.Join(projectDir, meta.HomeDir, "artifacts", "default", "default", artifactManifestFileName)
-	if got != want {
-		t.Fatalf("resolveDeployArtifactManifestPath() = %q, want %q", got, want)
-	}
-}
-
-func TestResolveDeployArtifactManifestPathUsesRelativeOverride(t *testing.T) {
-	projectDir := t.TempDir()
-	got := resolveDeployArtifactManifestPath(projectDir, "esb", "dev", "e2e/artifacts/dev/artifact.yml")
-	want := filepath.Join(projectDir, "e2e", "artifacts", "dev", "artifact.yml")
-	if got != want {
-		t.Fatalf("resolveDeployArtifactManifestPath() override = %q, want %q", got, want)
-	}
-}
-
-func TestResolveDeployArtifactManifestPathUsesAbsoluteOverride(t *testing.T) {
-	projectDir := t.TempDir()
-	abs := filepath.Join(projectDir, "custom", "artifact.yml")
-	got := resolveDeployArtifactManifestPath(projectDir, "esb", "dev", abs)
-	if got != abs {
-		t.Fatalf("resolveDeployArtifactManifestPath() absolute override = %q, want %q", got, abs)
 	}
 }
 
@@ -99,46 +71,22 @@ func TestNormalizeSourceTemplatePathWithoutProjectDirReturnsAbsolutePath(t *test
 	}
 }
 
-func TestResolveTemplateArtifactRootResolvesRelativeSummaryToAbsolute(t *testing.T) {
-	root := t.TempDir()
-	setWorkingDir(t, root)
-	templateRel := filepath.Join("templates", "sample.yaml")
-	if err := os.MkdirAll(filepath.Join(root, "templates"), 0o755); err != nil {
-		t.Fatalf("mkdir templates: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(root, templateRel), []byte("Resources: {}\n"), 0o600); err != nil {
-		t.Fatalf("write template: %v", err)
-	}
-
-	got, err := resolveTemplateArtifactRoot(templateRel, "", "dev")
-	if err != nil {
-		t.Fatalf("resolveTemplateArtifactRoot() error = %v", err)
-	}
-	want, err := filepath.Abs(filepath.Join("templates", meta.OutputDir, "dev"))
-	if err != nil {
-		t.Fatalf("filepath.Abs: %v", err)
-	}
-	if got != filepath.Clean(want) {
-		t.Fatalf("resolveTemplateArtifactRoot() = %q, want %q", got, filepath.Clean(want))
+func TestResolveTemplateArtifactRootRequiresOutputDir(t *testing.T) {
+	_, err := resolveTemplateArtifactRoot("")
+	if err == nil {
+		t.Fatal("expected error for empty output dir")
 	}
 }
 
-func TestResolveTemplateArtifactRootHonorsAbsoluteOutputDir(t *testing.T) {
+func TestResolveTemplateArtifactRootHonorsOutputDir(t *testing.T) {
 	root := t.TempDir()
-	templateAbs := filepath.Join(root, "templates", "sample.yaml")
-	if err := os.MkdirAll(filepath.Dir(templateAbs), 0o755); err != nil {
-		t.Fatalf("mkdir template dir: %v", err)
-	}
-	if err := os.WriteFile(templateAbs, []byte("Resources: {}\n"), 0o600); err != nil {
-		t.Fatalf("write template: %v", err)
-	}
 	outputAbs := filepath.Join(root, "out")
 
-	got, err := resolveTemplateArtifactRoot(templateAbs, outputAbs, "dev")
+	got, err := resolveTemplateArtifactRoot(outputAbs)
 	if err != nil {
 		t.Fatalf("resolveTemplateArtifactRoot() error = %v", err)
 	}
-	want := filepath.Join(outputAbs, "dev")
+	want := outputAbs
 	if got != filepath.Clean(want) {
 		t.Fatalf("resolveTemplateArtifactRoot() = %q, want %q", got, filepath.Clean(want))
 	}
@@ -181,14 +129,15 @@ func TestManifestGenerationDoesNotRequireJavaJars(t *testing.T) {
 	}
 
 	inputs := deployInputs{
-		ProjectDir: projectDir,
-		Project:    "demo",
-		Env:        "dev",
-		Mode:       "docker",
+		ProjectDir:   projectDir,
+		ArtifactRoot: filepath.Join(projectDir, "artifacts-root"),
+		Project:      "demo",
+		Env:          "dev",
+		Mode:         "docker",
 		Templates: []deployTemplateInput{
 			{
 				TemplatePath: filepath.Join(projectDir, "template.yaml"),
-				OutputDir:    filepath.Join(projectDir, ".esb", "dev"),
+				OutputDir:    filepath.Join(projectDir, "artifacts-root", "artifacts", "artifact-a"),
 				Parameters: map[string]string{
 					"Stage": "dev",
 				},
@@ -198,7 +147,7 @@ func TestManifestGenerationDoesNotRequireJavaJars(t *testing.T) {
 	if err := os.WriteFile(inputs.Templates[0].TemplatePath, []byte("Resources: {}\n"), 0o600); err != nil {
 		t.Fatalf("write template: %v", err)
 	}
-	manifestPath, err := writeDeployArtifactManifest(inputs, false, "")
+	manifestPath, err := writeDeployArtifactManifest(inputs, false)
 	if err != nil {
 		t.Fatalf("writeDeployArtifactManifest() error = %v", err)
 	}

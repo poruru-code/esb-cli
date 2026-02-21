@@ -86,8 +86,7 @@ go build -o ~/.local/bin/esb ./cmd/esb
 ### `esb deploy`
 
 - `-m, --mode <docker|containerd>`
-- `-o, --output <dir>`
-- `--manifest <path>`
+- `--artifact-root <dir>`
 - `-p, --project <name>`
 - `--compose-file <file>[,<file>...]`
 - `--image-uri <function>=<image-uri>[,...]`
@@ -106,8 +105,7 @@ go build -o ~/.local/bin/esb ./cmd/esb
 ### `esb artifact generate`
 
 - `-m, --mode <docker|containerd>`
-- `-o, --output <dir>`
-- `--manifest <path>`
+- `--artifact-root <dir>`
 - `-p, --project <name>`
 - `--compose-file <file>[,<file>...]`
 - `--image-uri <function>=<image-uri>[,...]`
@@ -132,7 +130,7 @@ go build -o ~/.local/bin/esb ./cmd/esb
 - 追加オプションなし（グローバルオプションのみ）
 
 補足:
-- TTY 実行時は不足値を対話入力で補完できます（例: `output`, `project`, `compose files`, `artifact apply` の必須値）。
+- TTY 実行時は不足値を対話入力で補完できます（例: `artifact root`, `project`, `compose files`, `artifact apply` の必須値）。
 - 実装と同期した詳細なヘルプスナップショットは `docs/command-reference.md` を参照してください。
 
 ## 使い方
@@ -160,14 +158,14 @@ esb artifact generate \
   --template e2e/fixtures/template.e2e.yaml \
   --env dev \
   --mode docker \
-  --manifest .esb/artifacts/esb/dev/artifact.yml
+  --artifact-root artifacts/esb-dev
 ```
 
 ### 生成済み Artifact を適用
 
 ```bash
 esb artifact apply \
-  --artifact .esb/artifacts/esb/dev/artifact.yml \
+  --artifact artifacts/esb-dev/artifact.yml \
   --out .esb/staging/esb-dev/dev/config \
   --secret-env .env
 ```

@@ -30,10 +30,11 @@ non-TTY または `Prompter=nil` の場合は、既定値採用かエラー返�
 3. compose project 解決
 4. env 解決
 5. mode 解決
-6. template 解決
-7. template ごとの output/parameters/image runtime 解決
-8. compose files 解決
-9. 最終確認（Proceed/Edit）
+6. artifact root 解決
+7. template 解決
+8. template ごとの parameters/image runtime 解決（output は artifact id から自動決定）
+9. compose files 解決
+10. 最終確認（Proceed/Edit）
 
 ## 4. prompt 一覧（deploy）
 
@@ -68,17 +69,19 @@ non-TTY または `Prompter=nil` の場合は、既定値採用かエラー返�
 - 実装: `internal/command/deploy_template_resolve.go`
 - 履歴 + 候補 + 手入力を組み合わせて解決
 
-### 4.6 Output 入力
+### 4.6 Artifact Root 入力
 
 - 実装: `internal/command/deploy_inputs_output.go`
-- `--output` 未指定かつ TTY で prompt
-- 既定値: previous output または `auto`
+- `--artifact-root` 未指定時に解決
+- TTY: prompt 表示（既定値: `<repo>/artifacts/<project-env>` または previous）
+- non-TTY: 既定レイアウトを自動採用
 
 ### 4.7 Compose files 入力
 
 - 実装: `internal/command/deploy_inputs_compose.go`
-- `--compose-file` 未指定かつ TTY で prompt
-- 既定値: previous compose files または `auto`
+- 対話 prompt なし（常時自動）
+- `--compose-file` 指定時のみ明示値を使用
+- 未指定時は `auto`（running project 由来/mode 既定で compose files を解決）
 
 ### 4.8 Template Parameters 入力
 
@@ -111,7 +114,7 @@ non-TTY または `Prompter=nil` の場合は、既定値採用かエラー返�
 ## 6. テスト観点（主要）
 
 - `internal/command/deploy_running_projects_test.go`: stack 選択再入力
-- `internal/command/deploy_inputs_flow_test.go`: project/output/compose prompt
+- `internal/command/deploy_inputs_flow_test.go`: project/artifact-root/compose prompt
 - `internal/command/deploy_inputs_mode_test.go`: mode conflict 選択・再試行
 - `internal/command/deploy_template_prompt_test.go`: parameter 表示/AllowedValues 検証
 - `internal/command/deploy_image_runtime_prompt_test.go`: image runtime prompt 文脈

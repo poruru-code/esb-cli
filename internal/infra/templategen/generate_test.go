@@ -149,10 +149,6 @@ func TestGenerateFilesUsesParserOverride(t *testing.T) {
 	}
 
 	outputDir := filepath.Join(root, meta.OutputDir)
-	runtimeBaseDockerfile := filepath.Join(outputDir, runtimeBaseContextDirName, runtimeBasePythonDockerfileRel)
-	if _, err := os.Stat(runtimeBaseDockerfile); err != nil {
-		t.Fatalf("expected runtime base dockerfile to be staged: %v", err)
-	}
 	dockerfilePath := filepath.Join(outputDir, "functions", "lambda-hello", "Dockerfile")
 	if _, err := os.Stat(dockerfilePath); err != nil {
 		t.Fatalf("expected dockerfile to exist: %v", err)

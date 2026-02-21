@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	domaincfg "github.com/poruru-code/esb-cli/internal/domain/config"
 	"github.com/poruru-code/esb-cli/internal/meta"
 	"github.com/poruru-code/esb-cli/internal/version"
 	"github.com/poruru-code/esb/pkg/artifactcore"
@@ -23,19 +22,17 @@ const artifactManifestFileName = "artifact.yml"
 func writeDeployArtifactManifest(
 	inputs deployInputs,
 	bundleEnabled bool,
-	manifestOverride string,
 ) (string, error) {
-	manifestPath := resolveDeployArtifactManifestPath(
-		inputs.ProjectDir,
-		inputs.Project,
-		inputs.Env,
-		manifestOverride,
-	)
+	artifactRoot := strings.TrimSpace(inputs.ArtifactRoot)
+	if artifactRoot == "" {
+		return "", errArtifactRootRequired
+	}
+	manifestPath := filepath.Join(artifactRoot, artifactManifestFileName)
 	manifestDir := filepath.Dir(manifestPath)
 	entries := make([]artifactcore.ArtifactEntry, 0, len(inputs.Templates))
 
 	for _, tpl := range inputs.Templates {
-		artifactRootAbs, err := resolveTemplateArtifactRoot(tpl.TemplatePath, tpl.OutputDir, inputs.Env)
+		artifactRootAbs, err := resolveTemplateArtifactRoot(tpl.OutputDir)
 		if err != nil {
 			return "", err
 		}
@@ -86,27 +83,6 @@ func writeDeployArtifactManifest(
 	return manifestPath, nil
 }
 
-func resolveDeployArtifactManifestPath(projectDir, project, env string, overridePath ...string) string {
-	if len(overridePath) > 0 {
-		trimmed := strings.TrimSpace(overridePath[0])
-		if trimmed != "" {
-			candidate := filepath.Clean(trimmed)
-			if !filepath.IsAbs(candidate) {
-				candidate = filepath.Join(projectDir, candidate)
-			}
-			return filepath.Clean(candidate)
-		}
-	}
-	return filepath.Join(
-		projectDir,
-		meta.HomeDir,
-		"artifacts",
-		sanitizePathSegment(project),
-		sanitizePathSegment(env),
-		artifactManifestFileName,
-	)
-}
-
 func sanitizePathSegment(value string) string {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
@@ -121,11 +97,14 @@ func sanitizePathSegment(value string) string {
 	return trimmed
 }
 
-func resolveTemplateArtifactRoot(templatePath, outputDir, env string) (string, error) {
-	resolved := domaincfg.ResolveOutputSummary(templatePath, outputDir, env)
-	abs, err := filepath.Abs(resolved)
+func resolveTemplateArtifactRoot(outputDir string) (string, error) {
+	baseDir := strings.TrimSpace(outputDir)
+	if baseDir == "" {
+		return "", errArtifactRootRequired
+	}
+	abs, err := filepath.Abs(baseDir)
 	if err != nil {
-		return "", fmt.Errorf("resolve artifact root %s: %w", resolved, err)
+		return "", fmt.Errorf("resolve artifact root %s: %w", baseDir, err)
 	}
 	return filepath.Clean(abs), nil
 }

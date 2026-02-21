@@ -7,6 +7,7 @@ import "errors"
 
 type deployInputs struct {
 	ProjectDir    string
+	ArtifactRoot  string
 	TargetStack   string
 	Env           string
 	EnvSource     string
@@ -65,10 +66,10 @@ var (
 	errTemplatePathRequired       = errors.New("template path is required")
 	errEnvironmentRequired        = errors.New("environment is required")
 	errModeRequired               = errors.New("mode is required")
+	errArtifactRootRequired       = errors.New("artifact root is required")
 	errMultipleRunningProjects    = errors.New("multiple running projects found (use --project)")
 	errComposeProjectRequired     = errors.New("compose project is required")
 	errTemplatePathEmpty          = errors.New("template path is empty")
 	errTemplateNotFound           = errors.New("no template.yaml or template.yml found in directory")
 	errParameterRequiresValue     = errors.New("parameter requires a value")
-	errMultipleTemplateOutput     = errors.New("output directory cannot be used with multiple templates")
 )

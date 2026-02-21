@@ -1,0 +1,104 @@
+# Where: fixtures/esb-e2e-docker/core/template.yaml
+# What: Core E2E subset template (python core functions + common layer).
+# Why: Validate multi-template artifact generation with independent groups.
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: E2E Core Functions (python core)
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Handler: lambda_function.lambda_handler
+    Timeout: 30
+    MemorySize: 128
+    Layers:
+      - !Ref CommonLayer
+
+Resources:
+  CommonLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: common-lib-e2e
+      ContentUri: ./layers/common/
+      CompatibleRuntimes:
+        - python3.12
+
+  ConnectivityFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-connectivity
+      CodeUri: ./functions/python/connectivity/
+      Events:
+        ConnectivityApi:
+          Type: Api
+          Properties:
+            Path: /api/connectivity/python
+            Method: post
+
+  IntegrationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-integration
+      CodeUri: ./functions/python/integration/
+      Events:
+        LambdaApi:
+          Type: Api
+          Properties:
+            Path: /api/lambda
+            Method: post
+
+  EchoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-echo
+      CodeUri: ./functions/python/echo/
+      AutoPublishAlias: live
+      Events:
+        EchoApi:
+          Type: Api
+          Properties:
+            Path: /api/echo
+            Method: post
+      ReservedConcurrentExecutions: 1
+      ProvisionedConcurrencyConfig:
+        ProvisionedConcurrentExecutions: 1
+
+  ChaosFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-chaos
+      CodeUri: ./functions/python/chaos/
+      Events:
+        FaultyApi:
+          Type: Api
+          Properties:
+            Path: /api/faulty
+            Method: post
+
+  ScalingTestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-scaling
+      CodeUri: ./functions/python/scaling/
+      ReservedConcurrentExecutions: 3
+      Events:
+        ScalingApi:
+          Type: Api
+          Properties:
+            Path: /api/scaling
+            Method: post
+
+  ScheduledFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-scheduled
+      CodeUri: ./functions/python/scheduled/
+      Events:
+        Timer:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
+            Input: '{"scheduled": true}'
+      Environment:
+        Variables:
+          DYNAMODB_ENDPOINT: "http://${DYNAMODB_ENDPOINT_HOST}:8000"

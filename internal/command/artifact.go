@@ -26,8 +26,7 @@ func runArtifactGenerate(cli CLI, deps Dependencies, out io.Writer) int {
 func artifactGenerateToDeployFlags(cmd ArtifactGenerateCmd) DeployCmd {
 	return DeployCmd{
 		Mode:         cmd.Mode,
-		Output:       cmd.Output,
-		Manifest:     cmd.Manifest,
+		ArtifactRoot: cmd.ArtifactRoot,
 		Project:      cmd.Project,
 		ComposeFiles: append([]string(nil), cmd.ComposeFiles...),
 		ImageURI:     append([]string(nil), cmd.ImageURI...),

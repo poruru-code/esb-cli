@@ -160,7 +160,7 @@ func TestAppendTemplateSummaryLinesDeterministicParams(t *testing.T) {
 			"z-image": "public.ecr.aws/example/z:latest",
 			"a-image": "public.ecr.aws/example/a:latest",
 		},
-	}, "dev", "esb-dev")
+	}, repoRoot, "dev", "esb-dev")
 	joined := strings.Join(lines, "\n")
 	idxA := strings.Index(joined, "  A = first")
 	idxZ := strings.Index(joined, "  Z = last")

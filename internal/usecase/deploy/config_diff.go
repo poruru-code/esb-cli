@@ -144,6 +144,7 @@ func extractNamedResources(resources map[string]any, key, nameField string) map[
 }
 
 func resolveTemplateConfigDir(templatePath, outputDir, env string) (string, error) {
+	_ = env
 	trimmed := strings.TrimSpace(templatePath)
 	if trimmed == "" {
 		return "", errTemplatePathRequired
@@ -155,5 +156,5 @@ func resolveTemplateConfigDir(templatePath, outputDir, env string) (string, erro
 		path = filepath.Join(baseDir, path)
 	}
 	path = filepath.Clean(path)
-	return filepath.Join(path, env, "config"), nil
+	return filepath.Join(path, "config"), nil
 }

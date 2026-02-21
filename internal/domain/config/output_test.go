@@ -42,7 +42,7 @@ func TestResolveOutputSummary(t *testing.T) {
 
 	t.Run("relative output dir", func(t *testing.T) {
 		got := ResolveOutputSummary(templatePath, "build", "dev")
-		want := filepath.Join("/repo", "services", "demo", "build", "dev")
+		want := filepath.Join("/repo", "services", "demo", "build")
 		if filepath.Clean(got) != filepath.Clean(want) {
 			t.Fatalf("ResolveOutputSummary() = %q, want %q", got, want)
 		}
@@ -50,7 +50,7 @@ func TestResolveOutputSummary(t *testing.T) {
 
 	t.Run("absolute output dir", func(t *testing.T) {
 		got := ResolveOutputSummary(templatePath, "/tmp/esb-out", "dev")
-		want := filepath.Join("/tmp/esb-out", "dev")
+		want := filepath.Join("/tmp/esb-out")
 		if filepath.Clean(got) != filepath.Clean(want) {
 			t.Fatalf("ResolveOutputSummary() = %q, want %q", got, want)
 		}

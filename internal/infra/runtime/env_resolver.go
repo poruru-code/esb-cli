@@ -17,6 +17,7 @@ import (
 	"github.com/poruru-code/esb-cli/internal/domain/value"
 	"github.com/poruru-code/esb-cli/internal/infra/compose"
 	"github.com/poruru-code/esb-cli/internal/infra/staging"
+	"github.com/poruru-code/esb-cli/internal/meta"
 )
 
 // EnvInference captures an inferred environment name and its source.
@@ -163,7 +164,7 @@ func (r DockerEnvResolver) inferEnvFromGateway(composeProject, templatePath stri
 			continue
 		}
 		if strings.EqualFold(string(mount.Type), "bind") && mount.Source != "" {
-			if env := InferEnvFromConfigPath(mount.Source, rootDir); env != "" {
+			if env := InferEnvFromConfigPath(mount.Source, rootDir, trimmed); env != "" {
 				return EnvInference{Env: env, Source: "gateway config mount"}, nil
 			}
 		}
@@ -221,7 +222,7 @@ func inferEnvFromStaging(composeProject, templatePath string) (EnvInference, err
 }
 
 // InferEnvFromConfigPath infers env from a staging config directory path.
-func InferEnvFromConfigPath(path, rootDir string) string {
+func InferEnvFromConfigPath(path, rootDir, composeProject string) string {
 	cleaned := filepath.Clean(strings.TrimSpace(path))
 	if cleaned == "" {
 		return ""
@@ -236,17 +237,16 @@ func InferEnvFromConfigPath(path, rootDir string) string {
 	if !strings.HasPrefix(cleaned+string(filepath.Separator), stagingRoot) {
 		return ""
 	}
-	env := filepath.Base(filepath.Dir(cleaned))
-	if env == "" || env == "." || env == string(filepath.Separator) {
+	scope := filepath.Base(filepath.Dir(cleaned))
+	if scope == "" || scope == "." || scope == string(filepath.Separator) {
 		return ""
 	}
-	return env
+	return inferEnvFromStagingScope(scope, composeProject)
 }
 
-// DiscoverStagingEnvs finds env directories under <staging>/<composeProject>/<env>/config.
+// DiscoverStagingEnvs finds env directories under <staging>/<compose-project-env>/config.
 func DiscoverStagingEnvs(rootDir, composeProject string) ([]string, error) {
-	baseDir := filepath.Join(rootDir, composeProject)
-	entries, err := os.ReadDir(baseDir)
+	entries, err := os.ReadDir(rootDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -258,9 +258,11 @@ func DiscoverStagingEnvs(rootDir, composeProject string) ([]string, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		candidate := filepath.Join(baseDir, entry.Name(), "config")
+		candidate := filepath.Join(rootDir, entry.Name(), "config")
 		if _, err := os.Stat(candidate); err == nil {
-			envs[entry.Name()] = struct{}{}
+			if env := inferEnvFromStagingScope(entry.Name(), composeProject); env != "" {
+				envs[env] = struct{}{}
+			}
 		}
 	}
 
@@ -273,4 +275,47 @@ func DiscoverStagingEnvs(rootDir, composeProject string) ([]string, error) {
 	}
 	sort.Strings(out)
 	return out, nil
+}
+
+func inferEnvFromStagingScope(scope, composeProject string) string {
+	scope = strings.TrimSpace(scope)
+	if scope == "" {
+		return ""
+	}
+	project := strings.TrimSpace(composeProject)
+	if project != "" {
+		if scope == project {
+			return inferEnvFromProjectName(scope)
+		}
+		prefix := project + "-"
+		if strings.HasPrefix(strings.ToLower(scope), strings.ToLower(prefix)) {
+			env := strings.TrimSpace(scope[len(prefix):])
+			if env != "" {
+				return env
+			}
+		}
+		return ""
+	}
+	return inferEnvFromProjectName(scope)
+}
+
+func inferEnvFromProjectName(project string) string {
+	trimmed := strings.TrimSpace(project)
+	if trimmed == "" {
+		return ""
+	}
+	brandPrefix := meta.Slug + "-"
+	if strings.HasPrefix(trimmed, brandPrefix) {
+		env := strings.TrimSpace(strings.TrimPrefix(trimmed, brandPrefix))
+		if env != "" {
+			return env
+		}
+	}
+	if idx := strings.LastIndex(trimmed, "-"); idx >= 0 && idx+1 < len(trimmed) {
+		env := strings.TrimSpace(trimmed[idx+1:])
+		if env != "" {
+			return env
+		}
+	}
+	return ""
 }

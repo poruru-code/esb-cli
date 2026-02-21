@@ -59,8 +59,7 @@ type (
 	// DeployCmd defines the deploy command flags.
 	DeployCmd struct {
 		Mode         string   `short:"m" help:"Runtime mode (docker/containerd)"`
-		Output       string   `short:"o" help:"Output directory for generated artifacts"`
-		Manifest     string   `name:"manifest" help:"Output path for artifact manifest (artifact.yml)"`
+		ArtifactRoot string   `name:"artifact-root" help:"Artifact root directory (artifact.yml + artifacts/)"`
 		Project      string   `short:"p" help:"Compose project name to target"`
 		ComposeFiles []string `name:"compose-file" sep:"," help:"Compose file(s) to use (repeatable or comma-separated)"`
 		ImageURI     []string `name:"image-uri" sep:"," help:"Image URI override for image functions (<function>=<image-uri>)"`
@@ -84,8 +83,7 @@ type (
 
 	ArtifactGenerateCmd struct {
 		Mode         string   `short:"m" help:"Runtime mode (docker/containerd)"`
-		Output       string   `short:"o" help:"Output directory for generated artifacts"`
-		Manifest     string   `name:"manifest" help:"Output path for artifact manifest (artifact.yml)"`
+		ArtifactRoot string   `name:"artifact-root" help:"Artifact root directory (artifact.yml + artifacts/)"`
 		Project      string   `short:"p" help:"Compose project name to target"`
 		ComposeFiles []string `name:"compose-file" sep:"," help:"Compose file(s) to use (repeatable or comma-separated)"`
 		ImageURI     []string `name:"image-uri" sep:"," help:"Image URI override for image functions (<function>=<image-uri>)"`
@@ -425,9 +423,9 @@ func handleParseError(args []string, err error, deps Dependencies, out io.Writer
 			ui.Warn("`--image-runtime` expects a value. Use <function>=<python|java21>.")
 			ui.Info(fmt.Sprintf("Example: %s deploy --image-runtime lambda-image=java21", cliCommandName))
 			return 1
-		case strings.Contains(msg, "--manifest"):
-			ui.Warn("`--manifest` expects a value. Provide an output artifact manifest path.")
-			ui.Info(fmt.Sprintf("Example: %s artifact generate --manifest e2e/artifacts/e2e-docker/artifact.yml", cliCommandName))
+		case strings.Contains(msg, "--artifact-root"):
+			ui.Warn("`--artifact-root` expects a value. Provide an artifact output directory.")
+			ui.Info(fmt.Sprintf("Example: %s artifact generate --artifact-root e2e/artifacts/e2e-docker", cliCommandName))
 			return 1
 		}
 	}

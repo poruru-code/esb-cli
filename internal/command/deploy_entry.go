@@ -10,7 +10,6 @@ import (
 	"os"
 	"strings"
 
-	domaincfg "github.com/poruru-code/esb-cli/internal/domain/config"
 	"github.com/poruru-code/esb-cli/internal/domain/state"
 	"github.com/poruru-code/esb-cli/internal/infra/build"
 	"github.com/poruru-code/esb-cli/internal/infra/compose"
@@ -281,7 +280,7 @@ func (c *deployCommand) renderGeneratePlanBlock(
 	if templateCount > 1 {
 		title = fmt.Sprintf("Generate plan (%d/%d)", idx+1, templateCount)
 	}
-	outputSummary := domaincfg.ResolveOutputSummary(tpl.TemplatePath, tpl.OutputDir, inputs.Env)
+	outputSummary := resolveDeployOutputSummary(inputs.ProjectDir, tpl.OutputDir, inputs.Env)
 	composeFiles := "auto"
 	if len(inputs.ComposeFiles) > 0 {
 		composeFiles = strings.Join(inputs.ComposeFiles, ", ")
@@ -306,7 +305,6 @@ func (c *deployCommand) writeArtifactManifest(
 	manifestPath, err := writeDeployArtifactManifest(
 		inputs,
 		flags.Bundle,
-		flags.Manifest,
 	)
 	if err != nil {
 		return "", fmt.Errorf("write artifact manifest: %w", err)

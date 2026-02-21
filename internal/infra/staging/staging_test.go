@@ -66,8 +66,11 @@ func TestRootDirUsesTemplatePathWhenCwdOutsideRepo(t *testing.T) {
 }
 
 func TestComposeProjectKey(t *testing.T) {
-	if got := ComposeProjectKey("custom-project", "dev"); got != "custom-project" {
-		t.Fatalf("ComposeProjectKey() = %q, want %q", got, "custom-project")
+	if got := ComposeProjectKey("custom-project", "dev"); got != "custom-project-dev" {
+		t.Fatalf("ComposeProjectKey() = %q, want %q", got, "custom-project-dev")
+	}
+	if got := ComposeProjectKey("custom-project-dev", "dev"); got != "custom-project-dev" {
+		t.Fatalf("ComposeProjectKey() should not duplicate env = %q", got)
 	}
 	if got := ComposeProjectKey("", "Dev"); got != meta.Slug+"-dev" {
 		t.Fatalf("ComposeProjectKey() env fallback = %q", got)
@@ -109,7 +112,7 @@ func TestBaseDirAndConfigDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BaseDir() error = %v", err)
 	}
-	wantBase := filepath.Join(repoRoot, meta.HomeDir, "staging", "esb-dev", "dev")
+	wantBase := filepath.Join(repoRoot, meta.HomeDir, "staging", "esb-dev")
 	if filepath.Clean(base) != filepath.Clean(wantBase) {
 		t.Fatalf("BaseDir() = %q, want %q", base, wantBase)
 	}

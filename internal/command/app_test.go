@@ -148,7 +148,7 @@ func TestHandleParseErrorFallback(t *testing.T) {
 }
 
 func TestHandleParseErrorKnownFlags(t *testing.T) {
-	tests := []string{"--env", "--mode", "--env-file", "--manifest", "--image-uri", "--image-runtime"}
+	tests := []string{"--env", "--mode", "--env-file", "--artifact-root", "--image-uri", "--image-runtime"}
 	for _, flag := range tests {
 		t.Run(flag, func(t *testing.T) {
 			var out bytes.Buffer
@@ -261,7 +261,7 @@ func TestCommandFlagExpectsValueUsesCLIReflection(t *testing.T) {
 		{flag: "--no-cache", want: false},
 		{flag: "-v", want: false},
 		{flag: "-e", want: true},
-		{flag: "--manifest=artifact.yml", want: false},
+		{flag: "--artifact-root=e2e/artifacts/e2e-docker", want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.flag, func(t *testing.T) {

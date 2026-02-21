@@ -4,9 +4,6 @@
 package command
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/poruru-code/esb-cli/internal/infra/compose"
 	"github.com/poruru-code/esb-cli/internal/infra/interaction"
 )
@@ -25,37 +22,16 @@ func resolveDeployComposeFiles(
 	previous []string,
 	baseDir string,
 ) ([]string, error) {
+	_ = isTTY
+	_ = prompter
+
+	// Compose files are not prompted interactively.
+	// Explicit --compose-file wins; otherwise we keep previous explicit value.
 	if normalized := normalizeComposeFiles(values, baseDir); len(normalized) > 0 {
 		return normalized, nil
 	}
-	if !isTTY || prompter == nil {
-		return nil, nil
-	}
-
-	defaultFiles := normalizeComposeFiles(previous, baseDir)
-	defaultValue := "auto"
-	suggestions := []string{"auto"}
-	if len(defaultFiles) > 0 {
-		defaultValue = strings.Join(defaultFiles, ",")
-		suggestions = []string{defaultValue, "auto"}
-	}
-	input, err := prompter.Input(
-		fmt.Sprintf("Compose file(s) (comma-separated, default: %s)", defaultValue),
-		suggestions,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("prompt compose files: %w", err)
-	}
-	selected := strings.TrimSpace(input)
-	switch {
-	case selected == "":
-		if len(defaultFiles) == 0 {
-			return nil, nil
-		}
+	if defaultFiles := normalizeComposeFiles(previous, baseDir); len(defaultFiles) > 0 {
 		return append([]string{}, defaultFiles...), nil
-	case strings.EqualFold(selected, "auto"):
-		return nil, nil
-	default:
-		return normalizeComposeFiles(strings.Split(selected, ","), baseDir), nil
 	}
+	return nil, nil
 }

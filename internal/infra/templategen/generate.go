@@ -16,6 +16,8 @@ import (
 	samparser "github.com/poruru-code/esb-cli/internal/infra/sam"
 )
 
+const runtimeBaseContextDirName = "runtime-base"
+
 // GenerateOptions configures Generator.GenerateFiles behavior.
 type GenerateOptions struct {
 	ProjectRoot         string
@@ -112,17 +114,6 @@ func GenerateFiles(cfg config.GeneratorConfig, opts GenerateOptions) ([]template
 		if err := ensureDir(layerCacheDir); err != nil {
 			return nil, err
 		}
-	}
-	if err := stageRuntimeBaseContext(
-		stageContext{
-			OutputDir:   outputDir,
-			ProjectRoot: projectRoot,
-			DryRun:      opts.DryRun,
-			Verbose:     opts.Verbose,
-			Out:         out,
-		},
-	); err != nil {
-		return nil, err
 	}
 
 	functions := make([]template.FunctionSpec, 0, len(parsed.Functions))

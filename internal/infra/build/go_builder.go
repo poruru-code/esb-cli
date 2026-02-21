@@ -110,7 +110,7 @@ func (b *GoBuilder) Build(request BuildRequest) error {
 	includeDockerOutput := !strings.EqualFold(mode, compose.ModeContainerd)
 
 	artifactBase := templategen.ResolveOutputDir(cfg.Paths.OutputDir, filepath.Dir(templatePath))
-	cfg.Paths.OutputDir = filepath.Join(artifactBase, request.Env)
+	cfg.Paths.OutputDir = artifactBase
 	lockRoot := ""
 	if request.BuildImages {
 		lockRoot, err = staging.RootDir(templatePath)
