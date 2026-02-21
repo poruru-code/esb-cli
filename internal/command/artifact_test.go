@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/poruru-code/esb-cli/internal/domain/state"
+	"github.com/poruru-code/esb-cli/internal/infra/interaction"
 	"github.com/poruru-code/esb-cli/internal/infra/ui"
 	engine "github.com/poruru-code/esb/pkg/artifactcore"
 )
@@ -228,6 +229,106 @@ func TestRunArtifactApplyPrintsWarningsOnRuntimeStackAPIMinorMismatch(t *testing
 	if !strings.Contains(out.String(), "runtime_stack.api_version minor mismatch") {
 		t.Fatalf("expected warning output, got %q", out.String())
 	}
+}
+
+func TestResolveArtifactApplyInputsPromptsForRequiredValues(t *testing.T) {
+	prompter := &queuedInputPrompter{
+		inputs: []string{"", "/tmp/artifact.yml", "", "/tmp/out"},
+	}
+	var errOut bytes.Buffer
+
+	got, err := resolveArtifactApplyInputs(ArtifactApplyCmd{}, true, prompter, &errOut)
+	if err != nil {
+		t.Fatalf("resolve artifact apply inputs: %v", err)
+	}
+	if got.Artifact != "/tmp/artifact.yml" {
+		t.Fatalf("unexpected artifact path: %q", got.Artifact)
+	}
+	if got.OutputDir != "/tmp/out" {
+		t.Fatalf("unexpected output dir: %q", got.OutputDir)
+	}
+	if len(prompter.titles) != 4 {
+		t.Fatalf("expected 4 prompt calls, got %d", len(prompter.titles))
+	}
+	if !strings.Contains(errOut.String(), "Artifact manifest path is required.") {
+		t.Fatalf("expected artifact warning, got %q", errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "Output config directory is required.") {
+		t.Fatalf("expected output warning, got %q", errOut.String())
+	}
+}
+
+func TestRunArtifactApplyPromptsForMissingValuesInTTY(t *testing.T) {
+	root := t.TempDir()
+	artifactRoot := filepath.Join(root, "a")
+	writeYAML(t, filepath.Join(artifactRoot, "config", "functions.yml"), "functions: {}\n")
+	writeYAML(t, filepath.Join(artifactRoot, "config", "routing.yml"), "routes: []\n")
+
+	manifest := engine.ArtifactManifest{
+		SchemaVersion: engine.ArtifactSchemaVersionV1,
+		Project:       "esb-dev",
+		Env:           "dev",
+		Mode:          "docker",
+		Artifacts: []engine.ArtifactEntry{
+			{
+				ArtifactRoot:     "../a",
+				RuntimeConfigDir: "config",
+				SourceTemplate: engine.ArtifactSourceTemplate{
+					Path:   "/tmp/template.yaml",
+					SHA256: "sha",
+				},
+			},
+		},
+	}
+	manifestPath := filepath.Join(root, "manifest", "artifact.yml")
+	if err := engine.WriteArtifactManifest(manifestPath, manifest); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	outDir := filepath.Join(root, "out")
+	prompter := &queuedInputPrompter{
+		inputs: []string{manifestPath, outDir},
+	}
+	prevIsTerminal := interaction.IsTerminal
+	interaction.IsTerminal = func(_ *os.File) bool { return true }
+	t.Cleanup(func() {
+		interaction.IsTerminal = prevIsTerminal
+	})
+
+	var out bytes.Buffer
+	exitCode := runArtifactApply(CLI{}, Dependencies{Prompter: prompter}, &out)
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d output=%q", exitCode, out.String())
+	}
+	if _, err := os.Stat(filepath.Join(outDir, "functions.yml")); err != nil {
+		t.Fatalf("functions.yml not generated: %v", err)
+	}
+	if len(prompter.titles) != 2 {
+		t.Fatalf("expected 2 prompt calls, got %d", len(prompter.titles))
+	}
+}
+
+type queuedInputPrompter struct {
+	inputs []string
+	titles []string
+}
+
+func (p *queuedInputPrompter) Input(title string, _ []string) (string, error) {
+	p.titles = append(p.titles, title)
+	if len(p.inputs) == 0 {
+		return "", nil
+	}
+	value := p.inputs[0]
+	p.inputs = p.inputs[1:]
+	return value, nil
+}
+
+func (*queuedInputPrompter) Select(_ string, _ []string) (string, error) {
+	return "", nil
+}
+
+func (*queuedInputPrompter) SelectValue(_ string, _ []interaction.SelectOption) (string, error) {
+	return "", nil
 }
 
 func writeYAML(t *testing.T, path, content string) {

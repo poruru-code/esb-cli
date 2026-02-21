@@ -4,6 +4,7 @@
 package command
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -144,6 +145,7 @@ func TestResolveDeployTargetStackSingleAutoSelect(t *testing.T) {
 		[]deployTargetStack{{Name: "esb-dev", Project: "esb3", Env: "dev"}},
 		true,
 		prompter,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("resolve target stack: %v", err)
@@ -164,6 +166,7 @@ func TestResolveDeployTargetStackMultipleNonTTY(t *testing.T) {
 		},
 		false,
 		nil,
+		nil,
 	)
 	if err == nil {
 		t.Fatalf("expected error for multiple stacks without tty")
@@ -174,14 +177,16 @@ func TestResolveDeployTargetStackMultipleNonTTY(t *testing.T) {
 }
 
 func TestResolveDeployTargetStackMultipleTTYSelection(t *testing.T) {
-	prompter := &recordingPrompter{selected: "esb-prod"}
+	stacks := []deployTargetStack{
+		{Name: "esb-dev", Project: "proj-a", Env: "dev"},
+		{Name: "esb-prod", Project: "proj-b", Env: "prod"},
+	}
+	prompter := &recordingPrompter{selected: renderDeployTargetStackOption(stacks[1])}
 	got, err := resolveDeployTargetStack(
-		[]deployTargetStack{
-			{Name: "esb-dev", Project: "proj-a", Env: "dev"},
-			{Name: "esb-prod", Project: "proj-b", Env: "prod"},
-		},
+		stacks,
 		true,
 		prompter,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("resolve target stack: %v", err)
@@ -189,23 +194,46 @@ func TestResolveDeployTargetStackMultipleTTYSelection(t *testing.T) {
 	if got.Name != "esb-prod" || got.Project != "proj-b" {
 		t.Fatalf("unexpected selected stack: %#v", got)
 	}
+	if len(prompter.lastSelectOptions) != 2 {
+		t.Fatalf("expected 2 stack options, got %d", len(prompter.lastSelectOptions))
+	}
+	if !strings.Contains(prompter.lastSelectOptions[0], "project=proj-a") {
+		t.Fatalf("expected option label to include project, got %q", prompter.lastSelectOptions[0])
+	}
+	if !strings.Contains(prompter.lastSelectOptions[0], "env=dev") {
+		t.Fatalf("expected option label to include env, got %q", prompter.lastSelectOptions[0])
+	}
 }
 
 func TestResolveDeployTargetStackMultipleTTYUnknownSelection(t *testing.T) {
-	prompter := &recordingPrompter{selected: "does-not-exist"}
-	got, err := resolveDeployTargetStack(
-		[]deployTargetStack{
-			{Name: "esb-dev", Project: "proj-a", Env: "dev"},
-			{Name: "esb-prod", Project: "proj-b", Env: "prod"},
+	stacks := []deployTargetStack{
+		{Name: "esb-dev", Project: "proj-a", Env: "dev"},
+		{Name: "esb-prod", Project: "proj-b", Env: "prod"},
+	}
+	prompter := &recordingPrompter{
+		selectValues: []string{
+			"does-not-exist",
+			renderDeployTargetStackOption(stacks[0]),
 		},
+	}
+	var errOut bytes.Buffer
+	got, err := resolveDeployTargetStack(
+		stacks,
 		true,
 		prompter,
+		&errOut,
 	)
 	if err != nil {
 		t.Fatalf("resolve target stack: %v", err)
 	}
-	if got != (deployTargetStack{}) {
-		t.Fatalf("expected empty stack for unknown selection, got %#v", got)
+	if got.Name != "esb-dev" || got.Project != "proj-a" {
+		t.Fatalf("expected retry to select first stack, got %#v", got)
+	}
+	if prompter.selectCalls != 2 {
+		t.Fatalf("expected 2 select calls after retry, got %d", prompter.selectCalls)
+	}
+	if !strings.Contains(errOut.String(), "Unknown target stack selection") {
+		t.Fatalf("expected warning for unknown selection, got %q", errOut.String())
 	}
 }
 
@@ -456,10 +484,12 @@ func TestInferDeployModeFromProjectWrapsResolveComposeFilesError(t *testing.T) {
 }
 
 type recordingPrompter struct {
-	inputCalls  int
-	inputValue  string
-	selectCalls int
-	selected    string
+	inputCalls        int
+	inputValue        string
+	selectCalls       int
+	selected          string
+	selectValues      []string
+	lastSelectOptions []string
 }
 
 func (p *recordingPrompter) Input(_ string, _ []string) (string, error) {
@@ -467,8 +497,14 @@ func (p *recordingPrompter) Input(_ string, _ []string) (string, error) {
 	return p.inputValue, nil
 }
 
-func (p *recordingPrompter) Select(_ string, _ []string) (string, error) {
+func (p *recordingPrompter) Select(_ string, options []string) (string, error) {
 	p.selectCalls++
+	p.lastSelectOptions = append([]string{}, options...)
+	if len(p.selectValues) > 0 {
+		value := p.selectValues[0]
+		p.selectValues = p.selectValues[1:]
+		return value, nil
+	}
 	if p.selected != "" {
 		return p.selected, nil
 	}

@@ -40,6 +40,7 @@ type deployRuntimeContext struct {
 
 type runtimeProjectSelection struct {
 	prevEnv       string
+	prevProject   string
 	projectValue  string
 	projectSource string
 	selectedStack deployTargetStack
@@ -123,6 +124,10 @@ func (r deployInputsResolver) resolveInputIteration(
 	if err != nil {
 		return deployInputs{}, err
 	}
+	composeFiles, err := r.resolveComposeFiles(cli, last, runtimeCtx.repoRoot)
+	if err != nil {
+		return deployInputs{}, err
+	}
 
 	return deployInputs{
 		ProjectDir:    runtimeCtx.repoRoot,
@@ -133,7 +138,7 @@ func (r deployInputsResolver) resolveInputIteration(
 		Templates:     templateInputs,
 		Project:       runtimeCtx.composeProject,
 		ProjectSource: runtimeCtx.projectSource,
-		ComposeFiles:  normalizeComposeFiles(cli.Deploy.ComposeFiles, runtimeCtx.repoRoot),
+		ComposeFiles:  composeFiles,
 	}, nil
 }
 
@@ -187,7 +192,7 @@ func (r deployInputsResolver) resolveRuntimeContext(cli CLI, last deployInputs) 
 	if err != nil {
 		return deployRuntimeContext{}, err
 	}
-	composeProject, projectSource, err := resolveRuntimeComposeProject(cli, selection)
+	composeProject, projectSource, err := r.resolveRuntimeComposeProject(cli, selection)
 	if err != nil {
 		return deployRuntimeContext{}, err
 	}
@@ -235,6 +240,7 @@ func (r deployInputsResolver) resolveRuntimeProjectSelection(
 	}
 	return runtimeProjectSelection{
 		prevEnv:       prevEnv,
+		prevProject:   strings.TrimSpace(last.Project),
 		projectValue:  projectValue,
 		projectSource: projectValueSource,
 		selectedStack: selectedStack,
@@ -251,14 +257,14 @@ func (r deployInputsResolver) resolveRuntimeSelectedStack(
 	if stackDiscoverErr != nil {
 		writeWarningf(r.errOut, "Warning: failed to discover running stacks: %v\n", stackDiscoverErr)
 	}
-	selectedStack, err := resolveDeployTargetStack(runningStacks, r.isTTY, r.prompter)
+	selectedStack, err := resolveDeployTargetStack(runningStacks, r.isTTY, r.prompter, r.errOut)
 	if err != nil {
 		return deployTargetStack{}, err
 	}
 	return selectedStack, nil
 }
 
-func resolveRuntimeComposeProject(
+func (r deployInputsResolver) resolveRuntimeComposeProject(
 	cli CLI,
 	selection runtimeProjectSelection,
 ) (string, string, error) {
@@ -269,6 +275,19 @@ func resolveRuntimeComposeProject(
 		cli.EnvFlag,
 		selection.prevEnv,
 	)
+	if projectSource == "default" {
+		selectedProject, selectedSource, err := resolveDeployProject(
+			composeProject,
+			r.isTTY,
+			r.prompter,
+			selection.prevProject,
+			r.errOut,
+		)
+		if err != nil {
+			return "", "", err
+		}
+		return selectedProject, selectedSource, nil
+	}
 	return composeProject, projectSource, nil
 }
 
@@ -332,7 +351,8 @@ func (r deployInputsResolver) resolveMode(
 	stored storedDeployDefaults,
 	last deployInputs,
 ) (string, error) {
-	prevMode := strings.TrimSpace(last.Mode)
+	previousSelectedMode := strings.TrimSpace(last.Mode)
+	prevMode := previousSelectedMode
 	if prevMode == "" {
 		prevMode = strings.TrimSpace(stored.Mode)
 	}
@@ -353,12 +373,14 @@ func (r deployInputsResolver) resolveMode(
 	switch {
 	case ctx.inferredMode != "":
 		if flagMode != "" && ctx.inferredMode != flagMode {
-			writeWarningf(
-				r.errOut,
-				"Warning: running project uses %s mode; ignoring --mode %s (source: %s)\n",
+			return resolveDeployModeConflict(
 				ctx.inferredMode,
-				flagMode,
 				ctx.inferredModeSrc,
+				flagMode,
+				r.isTTY,
+				r.prompter,
+				previousSelectedMode,
+				r.errOut,
 			)
 		}
 		return ctx.inferredMode, nil
@@ -447,11 +469,20 @@ func (r deployInputsResolver) resolveSingleTemplateInput(
 	if err != nil {
 		return deployTemplateInput{}, err
 	}
-	imageFunctionNames, err := discoverImageFunctionNames(templatePath, params)
+	imageTargets, err := discoverImageRuntimePromptTargets(templatePath, params)
 	if err != nil {
 		return deployTemplateInput{}, err
 	}
-	templateImageSources := filterFunctionOverrides(ctx.overrides.imageSources, imageFunctionNames)
+	imageFunctionNames := make([]string, 0, len(imageTargets))
+	defaultImageSources := map[string]string{}
+	for _, target := range imageTargets {
+		imageFunctionNames = append(imageFunctionNames, target.Name)
+		if source := strings.TrimSpace(target.ImageSource); source != "" {
+			defaultImageSources[target.Name] = source
+		}
+	}
+	overrideImageSources := filterFunctionOverrides(ctx.overrides.imageSources, imageFunctionNames)
+	templateImageSources := mergeTemplateImageSources(defaultImageSources, overrideImageSources)
 	templateImageRuntimeOverrides := filterFunctionOverrides(
 		ctx.overrides.imageRuntimes,
 		imageFunctionNames,
@@ -465,6 +496,7 @@ func (r deployInputsResolver) resolveSingleTemplateInput(
 	imageRuntimes, err := promptTemplateImageRuntimes(
 		templatePath,
 		params,
+		templateImageSources,
 		r.isTTY,
 		r.prompter,
 		prevImageRuntimes,
@@ -482,6 +514,30 @@ func (r deployInputsResolver) resolveSingleTemplateInput(
 		ImageSources:  templateImageSources,
 		ImageRuntimes: imageRuntimes,
 	}, nil
+}
+
+func mergeTemplateImageSources(
+	defaults map[string]string,
+	overrides map[string]string,
+) map[string]string {
+	if len(defaults) == 0 && len(overrides) == 0 {
+		return nil
+	}
+	merged := make(map[string]string, len(defaults)+len(overrides))
+	for key, value := range defaults {
+		merged[key] = value
+	}
+	for key, value := range overrides {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		merged[key] = trimmed
+	}
+	if len(merged) == 0 {
+		return nil
+	}
+	return merged
 }
 
 func (r deployInputsResolver) resolveTemplateOutputDir(
@@ -505,6 +561,20 @@ func (r deployInputsResolver) resolveTemplateOutputDir(
 		r.isTTY,
 		r.prompter,
 		prevOutput,
+	)
+}
+
+func (r deployInputsResolver) resolveComposeFiles(
+	cli CLI,
+	last deployInputs,
+	repoRoot string,
+) ([]string, error) {
+	return resolveDeployComposeFiles(
+		cli.Deploy.ComposeFiles,
+		r.isTTY,
+		r.prompter,
+		last.ComposeFiles,
+		repoRoot,
 	)
 }
 

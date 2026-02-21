@@ -26,9 +26,30 @@ func resolveDeployOutput(
 		return "", nil
 	}
 	if prev := strings.TrimSpace(previous); prev != "" {
+		input, err := prompter.Input(
+			fmt.Sprintf("Output directory (default: %s)", prev),
+			[]string{prev},
+		)
+		if err != nil {
+			return "", fmt.Errorf("prompt output directory: %w", err)
+		}
+		if selected := strings.TrimSpace(input); selected != "" {
+			return selected, nil
+		}
 		return prev, nil
 	}
-	return "", nil
+	input, err := prompter.Input(
+		"Output directory (default: auto)",
+		[]string{"auto"},
+	)
+	if err != nil {
+		return "", fmt.Errorf("prompt output directory: %w", err)
+	}
+	selected := strings.TrimSpace(input)
+	if selected == "" || strings.EqualFold(selected, "auto") {
+		return "", nil
+	}
+	return selected, nil
 }
 
 func deriveMultiTemplateOutputDir(templatePath string, counts map[string]int) string {

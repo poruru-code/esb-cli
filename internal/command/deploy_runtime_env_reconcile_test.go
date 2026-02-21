@@ -24,17 +24,19 @@ func (r fixedEnvResolver) InferEnvFromProject(_, _ string) (runtimeinfra.EnvInfe
 
 type selectOnlyPrompter struct {
 	selected string
+	titles   []string
 }
 
-func (p selectOnlyPrompter) Input(_ string, _ []string) (string, error) {
+func (p *selectOnlyPrompter) Input(_ string, _ []string) (string, error) {
 	return "", nil
 }
 
-func (p selectOnlyPrompter) Select(_ string, _ []string) (string, error) {
+func (p *selectOnlyPrompter) Select(_ string, _ []string) (string, error) {
 	return "", nil
 }
 
-func (p selectOnlyPrompter) SelectValue(_ string, _ []interaction.SelectOption) (string, error) {
+func (p *selectOnlyPrompter) SelectValue(title string, _ []interaction.SelectOption) (string, error) {
+	p.titles = append(p.titles, title)
 	return p.selected, nil
 }
 
@@ -97,12 +99,13 @@ func TestReconcileEnvWithRuntimeErrorsForExplicitMismatchWithoutTTY(t *testing.T
 }
 
 func TestReconcileEnvWithRuntimeUsesPromptSelection(t *testing.T) {
+	prompter := &selectOnlyPrompter{selected: "dev"}
 	got, err := reconcileEnvWithRuntime(
 		envChoice{Value: "prod", Source: "flag", Explicit: true},
 		"esb-dev",
 		"template.yaml",
 		true,
-		selectOnlyPrompter{selected: "dev"},
+		prompter,
 		fixedEnvResolver{inferred: runtimeinfra.EnvInference{Env: "dev", Source: "container label"}},
 		false,
 		nil,
@@ -118,6 +121,22 @@ func TestReconcileEnvWithRuntimeUsesPromptSelection(t *testing.T) {
 	}
 	if !got.Explicit {
 		t.Fatalf("expected explicit=true after prompt selection")
+	}
+	if len(prompter.titles) != 1 {
+		t.Fatalf("expected one prompt title, got %d", len(prompter.titles))
+	}
+	title := prompter.titles[0]
+	if !strings.Contains(title, "project: esb-dev") {
+		t.Fatalf("expected prompt title to include project, got %q", title)
+	}
+	if !strings.Contains(title, "template: template.yaml") {
+		t.Fatalf("expected prompt title to include template path, got %q", title)
+	}
+	if !strings.Contains(title, "container label") {
+		t.Fatalf("expected prompt title to include inferred source, got %q", title)
+	}
+	if !strings.Contains(title, "flag") {
+		t.Fatalf("expected prompt title to include current source, got %q", title)
 	}
 }
 

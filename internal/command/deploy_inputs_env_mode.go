@@ -103,3 +103,87 @@ func resolveDeployMode(
 		return normalized, nil
 	}
 }
+
+func resolveDeployModeConflict(
+	inferredMode string,
+	inferredSource string,
+	flagMode string,
+	isTTY bool,
+	prompter interaction.Prompter,
+	previous string,
+	errOut io.Writer,
+) (string, error) {
+	warningMessage := fmt.Sprintf(
+		"Warning: running project uses %s mode; ignoring --mode %s (source: %s)\n",
+		inferredMode,
+		flagMode,
+		renderPromptContextValue(inferredSource),
+	)
+	if !isTTY || prompter == nil {
+		writeWarningf(errOut, "%s", warningMessage)
+		return inferredMode, nil
+	}
+
+	options := []interaction.SelectOption{
+		{
+			Label: fmt.Sprintf(
+				"Use running project mode: %s (source: %s)",
+				inferredMode,
+				renderPromptContextValue(inferredSource),
+			),
+			Value: inferredMode,
+		},
+		{
+			Label: fmt.Sprintf("Use --mode flag: %s", flagMode),
+			Value: flagMode,
+		},
+	}
+	defaultMode := strings.TrimSpace(strings.ToLower(previous))
+	if defaultMode != inferredMode && defaultMode != flagMode {
+		defaultMode = inferredMode
+	}
+	ordered := orderModeConflictOptions(options, defaultMode)
+	title := fmt.Sprintf(
+		"Runtime mode conflict (running: %s [%s], --mode: %s)",
+		inferredMode,
+		renderPromptContextValue(inferredSource),
+		flagMode,
+	)
+	for {
+		selected, err := prompter.SelectValue(title, ordered)
+		if err != nil {
+			return "", fmt.Errorf("prompt runtime mode conflict: %w", err)
+		}
+		normalized, err := runtimecfg.NormalizeMode(selected)
+		if err != nil {
+			writeWarningf(errOut, "Runtime mode selection is required.\n")
+			continue
+		}
+		return normalized, nil
+	}
+}
+
+func orderModeConflictOptions(
+	options []interaction.SelectOption,
+	defaultMode string,
+) []interaction.SelectOption {
+	normalizedDefault := strings.TrimSpace(strings.ToLower(defaultMode))
+	if normalizedDefault == "" {
+		return append([]interaction.SelectOption{}, options...)
+	}
+	ordered := make([]interaction.SelectOption, 0, len(options))
+	for _, option := range options {
+		if strings.TrimSpace(strings.ToLower(option.Value)) == normalizedDefault {
+			ordered = append(ordered, option)
+		}
+	}
+	for _, option := range options {
+		if strings.TrimSpace(strings.ToLower(option.Value)) != normalizedDefault {
+			ordered = append(ordered, option)
+		}
+	}
+	if len(ordered) == 0 {
+		return append([]interaction.SelectOption{}, options...)
+	}
+	return ordered
+}

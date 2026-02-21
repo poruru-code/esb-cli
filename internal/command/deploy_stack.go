@@ -6,6 +6,7 @@ package command
 import (
 	"context"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 
@@ -32,6 +33,7 @@ func resolveDeployTargetStack(
 	stacks []deployTargetStack,
 	isTTY bool,
 	prompter interaction.Prompter,
+	errOut io.Writer,
 ) (deployTargetStack, error) {
 	if len(stacks) == 0 {
 		return deployTargetStack{}, nil
@@ -49,22 +51,41 @@ func resolveDeployTargetStack(
 	options := make([]string, 0, len(stacks))
 	lookup := make(map[string]deployTargetStack, len(stacks))
 	for _, stack := range stacks {
-		options = append(options, stack.Name)
-		lookup[stack.Name] = stack
+		label := renderDeployTargetStackOption(stack)
+		options = append(options, label)
+		lookup[label] = stack
 	}
-	selected, err := prompter.Select("Target stack (running)", options)
-	if err != nil {
-		return deployTargetStack{}, fmt.Errorf("prompt target stack: %w", err)
+	for {
+		selected, err := prompter.Select("Target stack (running)", options)
+		if err != nil {
+			return deployTargetStack{}, fmt.Errorf("prompt target stack: %w", err)
+		}
+		selected = strings.TrimSpace(selected)
+		if selected == "" {
+			writeWarningf(errOut, "Target stack selection is required.\n")
+			continue
+		}
+		stack, ok := lookup[selected]
+		if !ok {
+			writeWarningf(errOut, "Unknown target stack selection %q.\n", selected)
+			continue
+		}
+		return stack, nil
 	}
-	selected = strings.TrimSpace(selected)
-	if selected == "" {
-		return deployTargetStack{}, nil
+}
+
+func renderDeployTargetStackOption(stack deployTargetStack) string {
+	details := make([]string, 0, 2)
+	if project := strings.TrimSpace(stack.Project); project != "" {
+		details = append(details, "project="+project)
 	}
-	stack, ok := lookup[selected]
-	if !ok {
-		return deployTargetStack{}, nil
+	if env := strings.TrimSpace(stack.Env); env != "" {
+		details = append(details, "env="+env)
 	}
-	return stack, nil
+	if len(details) == 0 {
+		return stack.Name
+	}
+	return fmt.Sprintf("%s (%s)", stack.Name, strings.Join(details, ", "))
 }
 
 func defaultDeployProject(env string) string {

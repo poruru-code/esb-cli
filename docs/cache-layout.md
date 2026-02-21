@@ -1,5 +1,5 @@
 <!--
-Where: cli/docs/cache-layout.md
+Where: docs/cache-layout.md
 What: Cache layout used by CLI build/deploy pipeline.
 Why: Keep staging paths and cleanup rules explicit.
 -->
@@ -100,5 +100,7 @@ compose project + env で決まり、ハッシュはパスに使用しません�
 ---
 
 ## Implementation references
-- `cli/internal/infra/build`
-- `cli/internal/usecase/deploy`
+- `internal/infra/staging/staging.go`
+- `internal/infra/config/global.go`
+- `internal/infra/runtime/env_resolver.go`
+- `internal/usecase/deploy/deploy_run.go`
