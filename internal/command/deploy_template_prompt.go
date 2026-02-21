@@ -51,21 +51,26 @@ func promptTemplateParameters(
 		if hasDefault {
 			defaultStr = fmt.Sprint(param.Default)
 		}
+		allowsEmpty := parameterAllowsEmpty(param)
 		prevValue := ""
 		if previous != nil {
 			prevValue = strings.TrimSpace(previous[name])
 		}
 
 		if !isTTY || prompter == nil {
+			value := ""
 			if hasDefault {
-				values[name] = defaultStr
-				continue
+				value = defaultStr
+			} else if prevValue != "" {
+				value = prevValue
+			} else if !allowsEmpty {
+				return nil, fmt.Errorf("%w: %s", errParameterRequiresValue, name)
 			}
-			if prevValue != "" {
-				values[name] = prevValue
-				continue
+			if err := validateAllowedParameterValue(name, value, param.Allowed); err != nil {
+				return nil, err
 			}
-			return nil, fmt.Errorf("%w: %s", errParameterRequiresValue, name)
+			values[name] = value
+			continue
 		}
 
 		label := name
@@ -83,6 +88,8 @@ func promptTemplateParameters(
 			title = fmt.Sprintf("%s [Default: %s]", label, displayDefault)
 		case prevValue != "":
 			title = fmt.Sprintf("%s [Previous: %s]", label, prevValue)
+		case allowsEmpty:
+			title = fmt.Sprintf("%s [Optional: empty allowed]", label)
 		default:
 			title = fmt.Sprintf("%s [Required]", label)
 		}
@@ -90,6 +97,12 @@ func promptTemplateParameters(
 		suggestions := []string{}
 		if prevValue != "" {
 			suggestions = append(suggestions, prevValue)
+		}
+		if hasDefault && defaultStr != "" {
+			suggestions = appendSuggestion(suggestions, defaultStr)
+		}
+		for _, option := range param.Allowed {
+			suggestions = appendSuggestion(suggestions, option)
 		}
 		for {
 			input, err := prompter.Input(title, suggestions)
@@ -103,12 +116,16 @@ func promptTemplateParameters(
 			if input == "" && prevValue != "" {
 				input = prevValue
 			}
+			if input == "" && allowsEmpty {
+				values[name] = ""
+				break
+			}
 			if input == "" && !hasDefault {
-				if strings.EqualFold(param.Type, "String") {
-					values[name] = ""
-					break
-				}
 				writeWarningf(errOut, "Parameter %q is required.\n", name)
+				continue
+			}
+			if err := validateAllowedParameterValue(name, input, param.Allowed); err != nil {
+				writeWarningf(errOut, "%v\n", err)
 				continue
 			}
 			values[name] = input
@@ -141,8 +158,86 @@ func extractSAMParameters(data map[string]any) map[string]samParameter {
 			param.Description = d
 		}
 		param.Default = m["Default"]
+		param.Allowed = extractSAMAllowedValues(m["AllowedValues"])
 		result[name] = param
 	}
 
 	return result
+}
+
+func extractSAMAllowedValues(raw any) []string {
+	items, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(items))
+	seen := map[string]struct{}{}
+	for _, item := range items {
+		value := strings.TrimSpace(fmt.Sprint(item))
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func appendSuggestion(suggestions []string, value string) []string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return suggestions
+	}
+	for _, current := range suggestions {
+		if current == trimmed {
+			return suggestions
+		}
+	}
+	return append(suggestions, trimmed)
+}
+
+func parameterAllowsEmpty(param samParameter) bool {
+	if !strings.EqualFold(strings.TrimSpace(param.Type), "String") {
+		return false
+	}
+	if len(param.Allowed) == 0 {
+		return true
+	}
+	for _, option := range param.Allowed {
+		if strings.TrimSpace(option) == "" {
+			return true
+		}
+	}
+	return false
+}
+
+func validateAllowedParameterValue(name, value string, allowed []string) error {
+	if len(allowed) == 0 {
+		return nil
+	}
+	for _, option := range allowed {
+		if value == option {
+			return nil
+		}
+	}
+	return fmt.Errorf(
+		"parameter %q must be one of [%s]",
+		name,
+		strings.Join(formatAllowedParameterValues(allowed), ", "),
+	)
+}
+
+func formatAllowedParameterValues(allowed []string) []string {
+	formatted := make([]string, 0, len(allowed))
+	for _, option := range allowed {
+		display := option
+		if strings.TrimSpace(display) == "" {
+			display = "''"
+		}
+		formatted = append(formatted, display)
+	}
+	return formatted
 }

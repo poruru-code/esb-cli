@@ -206,6 +206,10 @@ Resources:
 	if runtimes["lambda-image"] != "python3.12" {
 		t.Fatalf("expected default runtime python3.12, got %#v", runtimes)
 	}
+	sources := inputs.Templates[0].ImageSources
+	if sources["lambda-image"] != "public.ecr.aws/example/repo:latest" {
+		t.Fatalf("expected template image source in resolved inputs, got %#v", sources)
+	}
 }
 
 func TestResolveDeployInputsUsesCLIImageRuntimeOverride(t *testing.T) {
@@ -316,6 +320,72 @@ Resources:
 	}
 	if got := inputs.Templates[0].ImageSources["lambda-image"]; got != override {
 		t.Fatalf("expected image uri override %q, got %q", override, got)
+	}
+}
+
+func TestResolveDeployInputsMergesTemplateImageSourceAndOverride(t *testing.T) {
+	repoRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repoRoot, "docker-compose.docker.yml"), []byte("version: '3'\n"), 0o600); err != nil {
+		t.Fatalf("write compose marker: %v", err)
+	}
+	templatePath := filepath.Join(repoRoot, "template.yaml")
+	template := `
+Transform: AWS::Serverless-2016-10-31
+Resources:
+  ImageFnA:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-image-a
+      PackageType: Image
+      ImageUri: public.ecr.aws/example/repo-a:latest
+  ImageFnB:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: lambda-image-b
+      PackageType: Image
+      ImageUri: public.ecr.aws/example/repo-b:latest
+`
+	if err := os.WriteFile(templatePath, []byte(template), 0o600); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+
+	override := "public.ecr.aws/example/repo-b:override"
+	cli := CLI{
+		Template: []string{templatePath},
+		EnvFlag:  "dev",
+		Deploy: DeployCmd{
+			Mode:     "docker",
+			Project:  "esb-dev",
+			ImageURI: []string{"lambda-image-b=" + override},
+			NoSave:   true,
+		},
+	}
+	deps := Dependencies{
+		RepoResolver: func(string) (string, error) {
+			return repoRoot, nil
+		},
+		Deploy: DeployDeps{
+			Runtime: DeployRuntimeDeps{
+				DockerClient: func() (compose.DockerClient, error) {
+					return nil, errors.New("docker unavailable")
+				},
+			},
+		},
+	}
+
+	inputs, err := resolveDeployInputs(cli, deps)
+	if err != nil {
+		t.Fatalf("resolve deploy inputs: %v", err)
+	}
+	if len(inputs.Templates) != 1 {
+		t.Fatalf("expected single template, got %d", len(inputs.Templates))
+	}
+	sources := inputs.Templates[0].ImageSources
+	if got := sources["lambda-image-a"]; got != "public.ecr.aws/example/repo-a:latest" {
+		t.Fatalf("expected default image source for lambda-image-a, got %q", got)
+	}
+	if got := sources["lambda-image-b"]; got != override {
+		t.Fatalf("expected override image source for lambda-image-b, got %q", got)
 	}
 }
 

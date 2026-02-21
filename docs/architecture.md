@@ -1,16 +1,16 @@
 <!--
-Where: cli/docs/architecture.md
-What: Source-of-truth architecture guide for CLI deploy workflow and extension points.
-Why: Keep implementation, dependency rules, and developer extension workflow aligned.
+Where: docs/architecture.md
+What: Source-of-truth architecture guide for CLI workflows and extension points.
+Why: Keep implementation, dependency rules, and extension flow aligned.
 -->
 # CLI アーキテクチャ（実装準拠）
 
 ## 1. 目的とスコープ
-このドキュメントは `cli` 配下の実装を前提に、以下を定義します。
+このドキュメントは本リポジトリの実装を前提に、次を定義します。
 
-- `esb deploy` / `esb version` の実行構造
+- `esb deploy` / `esb artifact generate` / `esb artifact apply` / `esb version` の実行構造
 - レイヤ責務と依存方向
-- 機能拡張時の実装手順（迷わないためのプレイブック）
+- 機能拡張時の実装手順
 - 変更時に通すべき品質ゲート
 
 公開 CLI 契約（コマンド・フラグ・基本挙動）は維持し、内部構造改善はこの契約を壊さない前提で行います。
@@ -18,15 +18,17 @@ Why: Keep implementation, dependency rules, and developer extension workflow ali
 ## 2. レイヤ構成
 | レイヤ | パッケージ | 責務 |
 | --- | --- | --- |
-| Entry | `cli/cmd/esb` | プロセス起動、DI 初期化、終了コード返却 |
-| Wiring | `cli/internal/app` | 依存注入（具体 infra 実装の組み立て） |
-| Command | `cli/internal/command` | フラグ解釈、入力解決、対話、実行リクエスト構築 |
-| Usecase | `cli/internal/usecase/deploy` | deploy フェーズ順序制御、失敗契約 |
-| Domain | `cli/internal/domain/*` | 純粋ロジック（型、差分、値正規化、テンプレート） |
-| Infra | `cli/internal/infra/*` | Docker/Compose/FS/SAM 解析/UI 等 I/O |
-| Guard | `cli/internal/architecture` | レイヤ違反・循環依存・依存契約の自動検出 |
+| Entry | `cmd/esb` | プロセス起動、DI 初期化、終了コード返却 |
+| Wiring | `internal/app` | 依存注入（infra 実装の組み立て） |
+| Command | `internal/command` | フラグ解釈、入力解決、対話、実行リクエスト構築 |
+| Usecase | `internal/usecase/deploy` | deploy フェーズ順序制御、失敗契約 |
+| Domain | `internal/domain/*` | 純粋ロジック（型、差分、正規化、テンプレート） |
+| Infra | `internal/infra/*` | Docker/Compose/FS/SAM 解析/UI など I/O |
+| Guard | `internal/architecture` | レイヤ違反・循環依存・依存契約の自動検出 |
 
-## 3. Deploy 実行フロー
+## 3. コマンド実行フロー
+
+### 3.1 `esb deploy`
 
 ```mermaid
 graph TD
@@ -44,132 +46,138 @@ graph TD
     F --> L[runProvisioner]
 ```
 
-実行順（`Workflow.Run`）:
+`Workflow.Run` の主な順序:
 
 1. `alignGatewayRuntime`（実行中 gateway から project/network を補正）
-2. `ApplyRuntimeEnv`（env defaults を適用）
+2. `ApplyRuntimeEnv`（env defaults 適用）
 3. `waitRegistryAndServices`（registry + compose service 状態確認）
-4. `prepareBuildPhase`（差分サマリ用スナップショット）
+4. `prepareBuildPhase`
 5. `runBuildPhase`（templategen + buildx bake）
 6. `emitPostBuildSummary`
 7. `runRuntimeProvisionPhase`（`build-only` 以外）
 
-## 4. 入力解決の契約（`deploy_inputs_resolve.go`）
+### 3.2 `esb artifact generate`
+
+`artifact generate` は `deploy` の build フローを再利用し、`build-only` 強制で実行します。
+（provision/apply は行わず、artifact manifest を生成）
+
+### 3.3 `esb artifact apply`
+
+`internal/command/artifact.go` から `deployops.Execute` を呼び出して、
+artifact manifest を指定出力ディレクトリへ適用します。
+TTY + prompter 有効時は、`--artifact` / `--out` 不足を対話補完します。
+
+## 4. 入力解決の契約（`internal/command/deploy_inputs_resolve.go`）
+`resolveDeployInputs` は Confirm で `Edit` が選ばれた場合に再解決ループします。
+
 主要な決定順序:
 
 1. `repo root` 解決
 2. `project` 決定（flag -> env -> host env -> running stack -> default）
-3. `env` 決定（flag/stack/runtime から reconcile）
-4. `mode` 決定（running services -> services -> compose files -> flag/prompt）
-5. `template` 決定（flag or interactive with history/candidates）
-6. `output/params/compose` 統合
-7. 最終確認 prompt（TTY 時）
+3. `env` 決定（flag/stack/runtime 推論 + mismatch reconcile）
+4. `mode` 決定（推論 mode と `--mode` が衝突した場合は TTY で選択）
+5. `template` 決定（flag or interactive + history/candidates）
+6. `output` / `compose files` / `parameters` / `image-runtime` を解決
+7. 最終確認 prompt（TTY 時、Proceed/Edit）
 
-注意点:
+現在の interactive 仕様:
 
-- 複数テンプレート時、先行テンプレートは自動で `build-only`
-- `stack 未検出` と `stack 検出失敗` は区別し、検出失敗は warning を出す
-- `--no-save-defaults` で defaults 永続化を抑止
+- stack 複数時の選択肢ラベルは `stack (project=..., env=...)`
+- stack 無効選択は warning を出して再入力
+- image runtime prompt は `function + image URI + default runtime` を表示
+- `project` / `output` / `compose files` 未指定時は TTY で補完
+
+詳細は `docs/deploy-interactive-inputs.md` を参照。
 
 ## 5. Build / Generate / Parse の責務境界
 
-- `infra/build`:
+- `internal/infra/build`
   - フェーズ実行のオーケストレーション
   - base image / function image build
   - artifact 生成（runtime-config merge は行わない）
-- `infra/templategen`:
+- `internal/infra/templategen`
   - 関数 staging、Dockerfile 生成、`functions.yml`/`routing.yml`/`resources.yml` 生成
   - bundle manifest 出力
-- `infra/sam`:
+- `internal/infra/sam`
   - SAM デコードと intrinsic 解決
   - Function/Resource の内部 spec 化
 
 `deploy` 実行時は関数系アーティファクトを生成し、control-plane イメージは `docker compose` 側で扱います。
 
 ## 6. DI と依存方向のルール
-実装ルールはテストで強制します。
+実装ルールは `internal/architecture` のテストで強制します。
 
-- レイヤ違反: `cli/internal/architecture/layering_test.go`
-- 循環依存: `cli/internal/architecture/layering_cycles_test.go`
-- 依存契約: `cli/internal/architecture/dependency_contracts_test.go`
+- レイヤ違反: `internal/architecture/layering_test.go`
+- 循環依存: `internal/architecture/layering_cycles_test.go`
+- 依存契約: `internal/architecture/dependency_contracts_test.go`
 
 重要契約:
 
-- `command` / `usecase` で infra の具体生成をしない（`app/di.go` で注入）
+- `command` / `usecase` で infra の具体生成をしない（`internal/app/di.go` で注入）
 - `usecase/deploy` は `docker/client` へ直接依存しない
-- `infra/sam` / `infra/templategen` は `fmt.Print*` 直書きをしない（出力経路統一）
+- `internal/infra/sam` / `internal/infra/templategen` は `fmt.Print*` 直書きをしない
 
 ## 7. エラー契約と決定性
 
-- `runtime-config` 同期失敗は deploy 失敗（warning にしない）
+- runtime-config 同期失敗は deploy 失敗（warning にしない）
 - image 関数は常に Dockerfile 経由で再ビルドし、hooks 注入済みイメージを使う
-- gateway/runtime の候補選択は安定順序（sort + 優先度）
+- stack/gateway 候補選択は安定順序（sort + 優先度）
 - stack 検出/モード推論失敗は warning を出し、可能な限り継続
 
 ## 8. 機能拡張プレイブック
 
 ### 8.1 Deploy フラグを追加する
-1. `cli/internal/command/app.go` の `DeployCmd` に追加
-2. `cli/internal/command/deploy_entry.go` で `deploy.Request` へ橋渡し
-3. 必要なら `cli/internal/usecase/deploy/deploy.go` の `Request` に追加
+1. `internal/command/app.go` の `DeployCmd` に追加
+2. `internal/command/deploy_entry.go` で `deploy.Request` へ橋渡し
+3. 必要なら `internal/usecase/deploy/deploy.go` の `Request` に追加
 4. テスト追加:
-   - `cli/internal/command/deploy_entry_test.go`
-   - `cli/internal/command/*_test.go`（入力解決や競合）
+   - `internal/command/deploy_entry_test.go`
+   - `internal/command/*_test.go`
 
 ### 8.2 入力解決ルールを追加する
-1. `cli/internal/command/deploy_inputs_resolve.go` に統合
+1. `internal/command/deploy_inputs_resolve.go` に統合
 2. 推論・正規化は既存分割 (`deploy_inputs_env_mode.go` / `deploy_stack.go`) に寄せる
 3. テスト追加:
-   - `cli/internal/command/deploy_inputs_resolve_test.go`
-   - `cli/internal/command/deploy_running_projects_test.go`
+   - `internal/command/deploy_inputs_resolve_test.go`
+   - `internal/command/deploy_running_projects_test.go`
 
 ### 8.3 Deploy フェーズを追加する
-1. `cli/internal/usecase/deploy/deploy_run.go` の順序に追加
+1. `internal/usecase/deploy/deploy_run.go` の順序に追加
 2. フェーズ本体は新規 `deploy_*.go` へ分離
 3. infra 呼び出しは interface 経由で注入
 4. テスト追加:
-   - `cli/internal/usecase/deploy/deploy_test.go`
-   - 対象フェーズ専用 `*_test.go`
+   - `internal/usecase/deploy/deploy_test.go`
 
-### 8.4 SAM 対応を追加する（新しい関数属性・リソース）
-1. `cli/internal/infra/sam/template_functions_*.go` / `template_resources.go` を更新
-2. 必要なら `cli/internal/domain/template/types.go` を拡張
-3. 生成物反映は `cli/internal/infra/templategen/generate.go` 側で受ける
+### 8.4 SAM 対応を追加する
+1. `internal/infra/sam/template_functions_*.go` / `template_resources.go` を更新
+2. 必要なら `internal/domain/template/types.go` を拡張
+3. 生成物反映は `internal/infra/templategen/generate.go` 側で受ける
 4. テスト追加:
-   - `cli/internal/infra/sam/template_parser_test.go`
-   - `cli/internal/infra/sam/template_functions_test.go`
-   - `cli/internal/infra/templategen/generate_test.go`
-
-### 8.5 出力メッセージ/警告を追加する
-1. `command` 層は `Out` / `ErrOut` / `ui.UserInterface` 経由に統一
-2. `infra/sam` / `infra/templategen` では `fmt.Print*` を使わない
-3. テストで出力捕捉可能な形を維持する
+   - `internal/infra/sam/template_parser_test.go`
+   - `internal/infra/sam/template_functions_test.go`
+   - `internal/infra/templategen/generate_test.go`
 
 ## 9. 変更時の推奨ゲート
 
-最小ゲート（`cli` 変更時）:
+最小ゲート:
 
 ```bash
-cd cli && go test ./internal/architecture ./internal/command ./internal/usecase/deploy ./internal/infra/runtime ./internal/infra/build ./internal/infra/deploy -count=1
-cd cli && go vet ./...
+go test ./internal/architecture ./internal/command ./internal/usecase/deploy ./internal/infra/runtime ./internal/infra/build ./internal/infra/deploy -count=1
+go vet ./...
 ```
 
 マイルストーンゲート:
 
 ```bash
-cd cli && go test ./...
-cd /home/akira/esb && X_API_KEY=dummy AUTH_USER=dummy AUTH_PASS=dummy uv run pytest -q e2e/runner/tests
-cd /home/akira/esb && uv run python e2e/run_tests.py --profile e2e-docker --test-target e2e/scenarios/smoke/test_smoke.py --verbose
-cd /home/akira/esb && uv run python e2e/run_tests.py --profile e2e-containerd --test-target e2e/scenarios/smoke/test_smoke.py --verbose
+mise run test
+mise run lint
 ```
 
 ## 10. 関連ドキュメント
 
-- ビルド詳細: `cli/docs/build.md`
-- Generator 詳細: `cli/docs/generator-architecture.md`
-- SAM 解析詳細: `cli/docs/sam-parsing-architecture.md`
-- コンテナ運用: `cli/docs/container-management.md`
-- ランタイム運用: `docs/container-runtime-operations.md`
-- Docker 構成: `docs/docker-image-architecture.md`
-- ローカルログ: `docs/local-logging-adapter.md`
-- トレース伝播: `docs/trace-propagation.md`
+- `docs/build.md`
+- `docs/generator-architecture.md`
+- `docs/sam-parsing-architecture.md`
+- `docs/container-management.md`
+- `docs/deploy-interactive-inputs.md`
+- `docs/command-reference.md`

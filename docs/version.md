@@ -10,7 +10,8 @@ esb version
 ```
 
 ## 実装詳細
-- 実装: `cli/internal/version/version.go` / `cli/internal/command/app.go`
+
+- 実装: `internal/version/version.go` / `internal/command/app.go`
 - `debug.ReadBuildInfo()` から `vcs.revision` / `vcs.modified` を取得
 - リビジョンは **7文字**に短縮
 - `vcs.modified=true` の場合は `(<dirty>)` を付与

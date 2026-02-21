@@ -96,12 +96,120 @@ func TestResolveDeployEnvFromStackUsesRuntimeResolver(t *testing.T) {
 	assertNoPromptCall(t, prompter)
 }
 
-func TestResolveDeployOutputInteractiveUsesPreviousWithoutPrompt(t *testing.T) {
-	assertResolveDeployOutputNoPrompt(t, ".esb/custom", ".esb/custom")
+func TestResolveDeployOutputInteractiveUsesPreviousDefault(t *testing.T) {
+	prompter := &recordingPrompter{inputValue: ""}
+	got, err := resolveDeployOutput(
+		"",
+		true,
+		prompter,
+		".esb/custom",
+	)
+	if err != nil {
+		t.Fatalf("resolve deploy output: %v", err)
+	}
+	if got != ".esb/custom" {
+		t.Fatalf("expected previous output .esb/custom, got %q", got)
+	}
+	if prompter.inputCalls != 1 {
+		t.Fatalf("expected one prompt call, got %d", prompter.inputCalls)
+	}
 }
 
-func TestResolveDeployOutputInteractiveUsesDefaultWithoutPrompt(t *testing.T) {
-	assertResolveDeployOutputNoPrompt(t, "", "")
+func TestResolveDeployOutputInteractiveUsesAutoDefault(t *testing.T) {
+	prompter := &recordingPrompter{inputValue: ""}
+	got, err := resolveDeployOutput(
+		"",
+		true,
+		prompter,
+		"",
+	)
+	if err != nil {
+		t.Fatalf("resolve deploy output: %v", err)
+	}
+	if got != "" {
+		t.Fatalf("expected auto output (empty), got %q", got)
+	}
+	if prompter.inputCalls != 1 {
+		t.Fatalf("expected one prompt call, got %d", prompter.inputCalls)
+	}
+}
+
+func TestResolveDeployProjectInteractiveUsesDefault(t *testing.T) {
+	prompter := &recordingPrompter{inputValue: ""}
+	got, source, err := resolveDeployProject("esb-dev", true, prompter, "", nil)
+	if err != nil {
+		t.Fatalf("resolve deploy project: %v", err)
+	}
+	if got != "esb-dev" || source != "default" {
+		t.Fatalf("unexpected project/source: got=(%q,%q)", got, source)
+	}
+	if prompter.inputCalls != 1 {
+		t.Fatalf("expected one prompt call, got %d", prompter.inputCalls)
+	}
+}
+
+func TestResolveDeployProjectInteractiveUsesPreviousDefault(t *testing.T) {
+	prompter := &recordingPrompter{inputValue: ""}
+	got, source, err := resolveDeployProject("esb-dev", true, prompter, "esb-prev", nil)
+	if err != nil {
+		t.Fatalf("resolve deploy project: %v", err)
+	}
+	if got != "esb-prev" || source != "previous" {
+		t.Fatalf("unexpected project/source: got=(%q,%q)", got, source)
+	}
+	if prompter.inputCalls != 1 {
+		t.Fatalf("expected one prompt call, got %d", prompter.inputCalls)
+	}
+}
+
+func TestResolveDeployComposeFilesInteractiveUsesAutoDefault(t *testing.T) {
+	prompter := &recordingPrompter{inputValue: ""}
+	got, err := resolveDeployComposeFiles(nil, true, prompter, nil, "/tmp")
+	if err != nil {
+		t.Fatalf("resolve compose files: %v", err)
+	}
+	if got != nil {
+		t.Fatalf("expected nil compose files for auto, got %v", got)
+	}
+	if prompter.inputCalls != 1 {
+		t.Fatalf("expected one prompt call, got %d", prompter.inputCalls)
+	}
+}
+
+func TestResolveDeployComposeFilesInteractiveUsesPrevious(t *testing.T) {
+	baseDir := t.TempDir()
+	previous := []string{"docker-compose.yml", "./docker-compose.override.yml"}
+	prompter := &recordingPrompter{inputValue: ""}
+	got, err := resolveDeployComposeFiles(nil, true, prompter, previous, baseDir)
+	if err != nil {
+		t.Fatalf("resolve compose files: %v", err)
+	}
+	want := normalizeComposeFiles(previous, baseDir)
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("unexpected compose files: got=%v want=%v", got, want)
+	}
+	if prompter.inputCalls != 1 {
+		t.Fatalf("expected one prompt call, got %d", prompter.inputCalls)
+	}
+}
+
+func TestResolveDeployComposeFilesInteractiveParsesCommaSeparatedInput(t *testing.T) {
+	baseDir := t.TempDir()
+	prompter := &recordingPrompter{inputValue: "docker-compose.yml, docker-compose.prod.yml"}
+	got, err := resolveDeployComposeFiles(nil, true, prompter, nil, baseDir)
+	if err != nil {
+		t.Fatalf("resolve compose files: %v", err)
+	}
+	want := normalizeComposeFiles(
+		[]string{"docker-compose.yml", "docker-compose.prod.yml"},
+		baseDir,
+	)
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("unexpected compose files: got=%v want=%v", got, want)
+	}
+	if prompter.inputCalls != 1 {
+		t.Fatalf("expected one prompt call, got %d", prompter.inputCalls)
+	}
 }
 
 func TestResolveProjectValue(t *testing.T) {
@@ -272,22 +380,4 @@ func assertNoPromptCall(t *testing.T, prompter *recordingPrompter) {
 	if prompter.inputCalls != 0 {
 		t.Fatalf("expected no prompt call, got %d", prompter.inputCalls)
 	}
-}
-
-func assertResolveDeployOutputNoPrompt(t *testing.T, previous, want string) {
-	t.Helper()
-	prompter := &recordingPrompter{inputValue: "should-not-be-used"}
-	got, err := resolveDeployOutput(
-		"",
-		true,
-		prompter,
-		previous,
-	)
-	if err != nil {
-		t.Fatalf("resolve deploy output: %v", err)
-	}
-	if got != want {
-		t.Fatalf("expected output %q, got %q", want, got)
-	}
-	assertNoPromptCall(t, prompter)
 }

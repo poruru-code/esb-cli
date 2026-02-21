@@ -60,7 +60,7 @@ func reconcileEnvWithRuntime(
 
 	if choice.Explicit {
 		if isTTY && prompter != nil {
-			selected, err := promptEnvMismatch(choice, inferred, prompter)
+			selected, err := promptEnvMismatch(choice, inferred, composeProject, templatePath, prompter)
 			if err != nil {
 				return choice, err
 			}
@@ -76,7 +76,7 @@ func reconcileEnvWithRuntime(
 	}
 
 	if isTTY && prompter != nil {
-		selected, err := promptEnvMismatch(choice, inferred, prompter)
+		selected, err := promptEnvMismatch(choice, inferred, composeProject, templatePath, prompter)
 		if err != nil {
 			return choice, err
 		}
@@ -92,12 +92,18 @@ func reconcileEnvWithRuntime(
 func promptEnvMismatch(
 	current envChoice,
 	inferred runtimeinfra.EnvInference,
+	composeProject string,
+	templatePath string,
 	prompter interaction.Prompter,
 ) (string, error) {
 	title := fmt.Sprintf(
-		"Environment mismatch (running: %s, current: %s)",
-		inferred.Env,
-		current.Value,
+		"Environment mismatch (running: %s [%s], current: %s [%s], project: %s, template: %s)",
+		renderPromptEnvValue(inferred.Env),
+		renderPromptContextValue(inferred.Source),
+		renderPromptEnvValue(current.Value),
+		renderPromptContextValue(current.Source),
+		renderPromptContextValue(composeProject),
+		renderPromptContextValue(templatePath),
 	)
 	options := []interaction.SelectOption{
 		{
@@ -114,6 +120,22 @@ func promptEnvMismatch(
 		return "", fmt.Errorf("prompt env mismatch: %w", err)
 	}
 	return selected, nil
+}
+
+func renderPromptContextValue(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "<none>"
+	}
+	return trimmed
+}
+
+func renderPromptEnvValue(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "<unknown>"
+	}
+	return trimmed
 }
 
 func applyEnvSelection(

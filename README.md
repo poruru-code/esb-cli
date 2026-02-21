@@ -74,6 +74,67 @@ cd /path/to/esb-cli
 go build -o ~/.local/bin/esb ./cmd/esb
 ```
 
+## コマンド一覧（オプション付き）
+
+### グローバルオプション（全コマンド共通）
+
+- `-h, --help`: ヘルプ表示
+- `-t, --template <path> ...`: SAM template パス（複数指定可）
+- `-e, --env <name>`: 環境名
+- `--env-file <path>`: `.env` ファイルパス
+
+### `esb deploy`
+
+- `-m, --mode <docker|containerd>`
+- `-o, --output <dir>`
+- `--manifest <path>`
+- `-p, --project <name>`
+- `--compose-file <file>[,<file>...]`
+- `--image-uri <function>=<image-uri>[,...]`
+- `--image-runtime <function>=<python|java21>[,...]`
+- `--build-only`
+- `--bundle-manifest`
+- `--no-cache`
+- `--with-deps`
+- `--secret-env <path>`
+- `-v, --verbose`
+- `--emoji`
+- `--no-emoji`
+- `--force`
+- `--no-save-defaults`
+
+### `esb artifact generate`
+
+- `-m, --mode <docker|containerd>`
+- `-o, --output <dir>`
+- `--manifest <path>`
+- `-p, --project <name>`
+- `--compose-file <file>[,<file>...]`
+- `--image-uri <function>=<image-uri>[,...]`
+- `--image-runtime <function>=<python|java21>[,...]`
+- `--bundle-manifest`
+- `--build-images`
+- `--no-cache`
+- `-v, --verbose`
+- `--emoji`
+- `--no-emoji`
+- `--force`
+- `--no-save-defaults`
+
+### `esb artifact apply`
+
+- `--artifact <path>`
+- `--out <dir>`
+- `--secret-env <path>`
+
+### `esb version`
+
+- 追加オプションなし（グローバルオプションのみ）
+
+補足:
+- TTY 実行時は不足値を対話入力で補完できます（例: `output`, `project`, `compose files`, `artifact apply` の必須値）。
+- 実装と同期した詳細なヘルプスナップショットは `docs/command-reference.md` を参照してください。
+
 ## 使い方
 
 ### バージョン確認
@@ -118,4 +179,6 @@ esb artifact apply \
 - `docs/container-management.md`
 - `docs/generator-architecture.md`
 - `docs/sam-parsing-architecture.md`
+- `docs/deploy-interactive-inputs.md`
+- `docs/command-reference.md`
 - `docs/version.md`

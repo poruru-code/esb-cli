@@ -4,8 +4,12 @@
 package command
 
 import (
+	"fmt"
 	"io"
+	"os"
+	"strings"
 
+	"github.com/poruru-code/esb-cli/internal/infra/interaction"
 	"github.com/poruru-code/esb/pkg/deployops"
 )
 
@@ -44,8 +48,16 @@ func boolPtr(value bool) *bool {
 	return &v
 }
 
-func runArtifactApply(cli CLI, _ Dependencies, out io.Writer) int {
-	args := cli.Artifact.Apply
+func runArtifactApply(cli CLI, deps Dependencies, out io.Writer) int {
+	args, err := resolveArtifactApplyInputs(
+		cli.Artifact.Apply,
+		interaction.IsTerminal(os.Stdin),
+		deps.Prompter,
+		resolveErrWriter(deps.ErrOut),
+	)
+	if err != nil {
+		return exitWithError(out, err)
+	}
 	result, err := deployops.Execute(deployops.Input{
 		ArtifactPath:  args.Artifact,
 		OutputDir:     args.OutputDir,
@@ -60,4 +72,39 @@ func runArtifactApply(cli CLI, _ Dependencies, out io.Writer) int {
 	}
 	deployUI.Success("Artifact apply complete")
 	return 0
+}
+
+func resolveArtifactApplyInputs(
+	args ArtifactApplyCmd,
+	isTTY bool,
+	prompter interaction.Prompter,
+	errOut io.Writer,
+) (ArtifactApplyCmd, error) {
+	artifactPath := strings.TrimSpace(args.Artifact)
+	outputDir := strings.TrimSpace(args.OutputDir)
+	if isTTY && prompter != nil {
+		for artifactPath == "" {
+			input, err := prompter.Input("Artifact manifest path (--artifact)", nil)
+			if err != nil {
+				return ArtifactApplyCmd{}, fmt.Errorf("prompt artifact manifest path: %w", err)
+			}
+			artifactPath = strings.TrimSpace(input)
+			if artifactPath == "" {
+				writeWarningf(errOut, "Artifact manifest path is required.\n")
+			}
+		}
+		for outputDir == "" {
+			input, err := prompter.Input("Output config directory (--out)", nil)
+			if err != nil {
+				return ArtifactApplyCmd{}, fmt.Errorf("prompt output config directory: %w", err)
+			}
+			outputDir = strings.TrimSpace(input)
+			if outputDir == "" {
+				writeWarningf(errOut, "Output config directory is required.\n")
+			}
+		}
+	}
+	args.Artifact = artifactPath
+	args.OutputDir = outputDir
+	return args, nil
 }

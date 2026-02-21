@@ -42,6 +42,7 @@ func TestPromptTemplateImageRuntimesNonTTYUsesPreviousAndDefault(t *testing.T) {
 	got, err := promptTemplateImageRuntimes(
 		templatePath,
 		nil,
+		nil,
 		false,
 		nil,
 		map[string]string{
@@ -76,6 +77,7 @@ func TestPromptTemplateImageRuntimesTTYPromptsEachImageFunction(t *testing.T) {
 	got, err := promptTemplateImageRuntimes(
 		templatePath,
 		nil,
+		nil,
 		true,
 		prompter,
 		map[string]string{
@@ -102,8 +104,14 @@ func TestPromptTemplateImageRuntimesTTYPromptsEachImageFunction(t *testing.T) {
 	if !strings.Contains(prompter.selectCalls[0].title, "a-image") {
 		t.Fatalf("expected first prompt for a-image, got %q", prompter.selectCalls[0].title)
 	}
+	if !strings.Contains(prompter.selectCalls[0].title, "public.ecr.aws/example/a:latest") {
+		t.Fatalf("expected first prompt to include image uri, got %q", prompter.selectCalls[0].title)
+	}
 	if !reflect.DeepEqual(prompter.selectCalls[1].options, []string{"java21", "python"}) {
 		t.Fatalf("unexpected options for b-image: %v", prompter.selectCalls[1].options)
+	}
+	if !strings.Contains(prompter.selectCalls[1].title, "public.ecr.aws/example/b:latest") {
+		t.Fatalf("expected second prompt to include image uri, got %q", prompter.selectCalls[1].title)
 	}
 }
 
@@ -113,6 +121,7 @@ func TestPromptTemplateImageRuntimesTTYUsesExplicitWithoutPrompt(t *testing.T) {
 
 	got, err := promptTemplateImageRuntimes(
 		templatePath,
+		nil,
 		nil,
 		true,
 		prompter,
@@ -144,6 +153,7 @@ func TestPromptTemplateImageRuntimesExplicitInvalidReturnsError(t *testing.T) {
 
 	_, err := promptTemplateImageRuntimes(
 		templatePath,
+		nil,
 		nil,
 		true,
 		prompter,
@@ -178,12 +188,39 @@ Resources:
 		t.Fatalf("write template: %v", err)
 	}
 
-	got, err := promptTemplateImageRuntimes(templatePath, nil, false, nil, nil, nil, &bytes.Buffer{})
+	got, err := promptTemplateImageRuntimes(templatePath, nil, nil, false, nil, nil, nil, &bytes.Buffer{})
 	if err != nil {
 		t.Fatalf("prompt image runtimes: %v", err)
 	}
 	if got != nil {
 		t.Fatalf("expected nil runtimes, got %v", got)
+	}
+}
+
+func TestPromptTemplateImageRuntimesTTYPromptShowsOverrideImageSource(t *testing.T) {
+	templatePath := writeImageRuntimeTemplate(t)
+	prompter := &imageRuntimePrompter{
+		selectValues: []string{"java21", "python"},
+	}
+	override := "public.ecr.aws/example/a-override:v2"
+	_, err := promptTemplateImageRuntimes(
+		templatePath,
+		nil,
+		map[string]string{"a-image": override},
+		true,
+		prompter,
+		nil,
+		nil,
+		&bytes.Buffer{},
+	)
+	if err != nil {
+		t.Fatalf("prompt image runtimes: %v", err)
+	}
+	if len(prompter.selectCalls) == 0 {
+		t.Fatal("expected prompt calls")
+	}
+	if !strings.Contains(prompter.selectCalls[0].title, override) {
+		t.Fatalf("expected prompt title to include override image source, got %q", prompter.selectCalls[0].title)
 	}
 }
 

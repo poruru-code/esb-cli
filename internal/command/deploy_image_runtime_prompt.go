@@ -21,16 +21,22 @@ const (
 	imageRuntimeJava21        = "java21"
 )
 
+type imageRuntimePromptTarget struct {
+	Name        string
+	ImageSource string
+}
+
 func promptTemplateImageRuntimes(
 	templatePath string,
 	parameters map[string]string,
+	imageSources map[string]string,
 	isTTY bool,
 	prompter interaction.Prompter,
 	previous map[string]string,
 	explicit map[string]string,
 	errOut io.Writer,
 ) (map[string]string, error) {
-	imageFunctions, err := discoverImageFunctionNames(templatePath, parameters)
+	imageFunctions, err := discoverImageRuntimePromptTargets(templatePath, parameters)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +45,8 @@ func promptTemplateImageRuntimes(
 	}
 
 	values := make(map[string]string, len(imageFunctions))
-	for _, functionName := range imageFunctions {
+	for _, target := range imageFunctions {
+		functionName := target.Name
 		if explicit != nil {
 			if override := strings.TrimSpace(explicit[functionName]); override != "" {
 				normalized, err := normalizeImageRuntimeSelection(override)
@@ -73,8 +80,9 @@ func promptTemplateImageRuntimes(
 
 		defaultChoice := imageRuntimeChoice(defaultRuntime)
 		title := fmt.Sprintf(
-			"Runtime for image function %s (default: %s)",
+			"Runtime for image function %s (image: %s, default: %s)",
 			functionName,
+			resolvePromptImageSource(target, imageSources),
 			defaultChoice,
 		)
 		selected, err := prompter.Select(title, orderedImageRuntimeChoices(defaultChoice))
@@ -95,7 +103,10 @@ func promptTemplateImageRuntimes(
 	return values, nil
 }
 
-func discoverImageFunctionNames(templatePath string, parameters map[string]string) ([]string, error) {
+func discoverImageRuntimePromptTargets(
+	templatePath string,
+	parameters map[string]string,
+) ([]imageRuntimePromptTarget, error) {
 	content, err := os.ReadFile(templatePath)
 	if err != nil {
 		return nil, fmt.Errorf("read template for image runtime: %w", err)
@@ -105,15 +116,33 @@ func discoverImageFunctionNames(templatePath string, parameters map[string]strin
 		return nil, fmt.Errorf("parse template for image runtime: %w", err)
 	}
 
-	names := make([]string, 0, len(parsed.Functions))
+	targets := make([]imageRuntimePromptTarget, 0, len(parsed.Functions))
 	for _, fn := range parsed.Functions {
-		if strings.TrimSpace(fn.ImageSource) == "" {
+		source := strings.TrimSpace(fn.ImageSource)
+		if source == "" {
 			continue
 		}
-		names = append(names, fn.Name)
+		targets = append(targets, imageRuntimePromptTarget{
+			Name:        fn.Name,
+			ImageSource: source,
+		})
 	}
-	sort.Strings(names)
-	return names, nil
+	sort.SliceStable(targets, func(i, j int) bool {
+		return targets[i].Name < targets[j].Name
+	})
+	return targets, nil
+}
+
+func resolvePromptImageSource(target imageRuntimePromptTarget, imageSources map[string]string) string {
+	if imageSources != nil {
+		if override := strings.TrimSpace(imageSources[target.Name]); override != "" {
+			return override
+		}
+	}
+	if source := strings.TrimSpace(target.ImageSource); source != "" {
+		return source
+	}
+	return "<unknown>"
 }
 
 func resolveImageRuntimeOrDefault(value string) (string, error) {

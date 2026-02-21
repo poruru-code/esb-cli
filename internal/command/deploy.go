@@ -52,6 +52,7 @@ type samParameter struct {
 	Type        string
 	Description string
 	Default     any
+	Allowed     []string
 }
 
 const (

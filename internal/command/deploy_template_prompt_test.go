@@ -15,13 +15,15 @@ import (
 )
 
 type templateParamPrompter struct {
-	inputs []string
-	err    error
-	titles []string
+	inputs      []string
+	err         error
+	titles      []string
+	suggestions [][]string
 }
 
-func (p *templateParamPrompter) Input(title string, _ []string) (string, error) {
+func (p *templateParamPrompter) Input(title string, suggestions []string) (string, error) {
 	p.titles = append(p.titles, title)
+	p.suggestions = append(p.suggestions, append([]string{}, suggestions...))
 	if p.err != nil {
 		return "", p.err
 	}
@@ -92,6 +94,42 @@ Parameters:
 	}
 }
 
+func TestPromptTemplateParametersNonTTYStringWithoutDefaultAllowsEmpty(t *testing.T) {
+	templatePath := writePromptTemplateFile(t, `
+Parameters:
+  OptionalString:
+    Type: String
+`)
+
+	got, err := promptTemplateParameters(templatePath, false, nil, nil, &bytes.Buffer{})
+	if err != nil {
+		t.Fatalf("prompt template parameters: %v", err)
+	}
+	if got["OptionalString"] != "" {
+		t.Fatalf("expected empty value for OptionalString, got %q", got["OptionalString"])
+	}
+}
+
+func TestPromptTemplateParametersNonTTYRejectsInvalidAllowedPrevious(t *testing.T) {
+	templatePath := writePromptTemplateFile(t, `
+Parameters:
+  DeployTier:
+    Type: String
+    AllowedValues:
+      - dev
+      - prod
+`)
+	previous := map[string]string{"DeployTier": "staging"}
+
+	_, err := promptTemplateParameters(templatePath, false, nil, previous, &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), `parameter "DeployTier" must be one of [dev, prod]`) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestPromptTemplateParametersTTYSortedAndRetry(t *testing.T) {
 	templatePath := writePromptTemplateFile(t, `
 Parameters:
@@ -129,6 +167,61 @@ Parameters:
 	}
 }
 
+func TestPromptTemplateParametersTTYOptionalStringShowsOptionalLabel(t *testing.T) {
+	templatePath := writePromptTemplateFile(t, `
+Parameters:
+  OptionalString:
+    Type: String
+`)
+	prompter := &templateParamPrompter{inputs: []string{""}}
+
+	got, err := promptTemplateParameters(templatePath, true, prompter, nil, &bytes.Buffer{})
+	if err != nil {
+		t.Fatalf("prompt template parameters: %v", err)
+	}
+	if got["OptionalString"] != "" {
+		t.Fatalf("expected OptionalString empty, got %q", got["OptionalString"])
+	}
+	if len(prompter.titles) != 1 {
+		t.Fatalf("expected one prompt, got %d", len(prompter.titles))
+	}
+	if !strings.Contains(prompter.titles[0], "[Optional: empty allowed]") {
+		t.Fatalf("expected optional label in title, got %q", prompter.titles[0])
+	}
+}
+
+func TestPromptTemplateParametersTTYAllowedValuesRetry(t *testing.T) {
+	templatePath := writePromptTemplateFile(t, `
+Parameters:
+  DeployTier:
+    Type: String
+    AllowedValues:
+      - dev
+      - prod
+`)
+	prompter := &templateParamPrompter{
+		inputs: []string{"staging", "prod"},
+	}
+	var errOut bytes.Buffer
+
+	got, err := promptTemplateParameters(templatePath, true, prompter, nil, &errOut)
+	if err != nil {
+		t.Fatalf("prompt template parameters: %v", err)
+	}
+	if got["DeployTier"] != "prod" {
+		t.Fatalf("expected DeployTier=prod, got %q", got["DeployTier"])
+	}
+	if len(prompter.titles) != 2 {
+		t.Fatalf("expected retry for invalid value, got %d prompts", len(prompter.titles))
+	}
+	if len(prompter.suggestions) == 0 || strings.Join(prompter.suggestions[0], ",") != "dev,prod" {
+		t.Fatalf("expected allowed values suggestions, got %#v", prompter.suggestions)
+	}
+	if !strings.Contains(errOut.String(), `parameter "DeployTier" must be one of [dev, prod]`) {
+		t.Fatalf("expected allowed-values warning, got %q", errOut.String())
+	}
+}
+
 func TestPromptTemplateParametersReturnsPromptError(t *testing.T) {
 	templatePath := writePromptTemplateFile(t, `
 Parameters:
@@ -153,6 +246,10 @@ func TestExtractSAMParametersMapAnyAny(t *testing.T) {
 				"Type":        "String",
 				"Description": "description",
 				"Default":     "default",
+				"AllowedValues": []any{
+					"default",
+					"override",
+				},
 			},
 			123: "ignored",
 		},
@@ -165,6 +262,9 @@ func TestExtractSAMParametersMapAnyAny(t *testing.T) {
 	}
 	if got.Type != "String" || got.Description != "description" || got.Default != "default" {
 		t.Fatalf("unexpected param: %#v", got)
+	}
+	if len(got.Allowed) != 2 || got.Allowed[0] != "default" || got.Allowed[1] != "override" {
+		t.Fatalf("unexpected allowed values: %#v", got.Allowed)
 	}
 }
 
