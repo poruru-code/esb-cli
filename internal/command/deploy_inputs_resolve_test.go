@@ -504,6 +504,102 @@ func (p *editFlowPrompter) SelectValue(_ string, _ []interaction.SelectOption) (
 	return value, nil
 }
 
+type queuedInputSelectValuePrompter struct {
+	inputs            []string
+	inputTitles       []string
+	selectValueValues []string
+}
+
+func (p *queuedInputSelectValuePrompter) Input(title string, _ []string) (string, error) {
+	p.inputTitles = append(p.inputTitles, title)
+	if len(p.inputs) == 0 {
+		return "", errors.New("no queued input")
+	}
+	value := p.inputs[0]
+	p.inputs = p.inputs[1:]
+	return value, nil
+}
+
+func (*queuedInputSelectValuePrompter) Select(_ string, _ []string) (string, error) {
+	return "", nil
+}
+
+func (p *queuedInputSelectValuePrompter) SelectValue(_ string, _ []interaction.SelectOption) (string, error) {
+	if len(p.selectValueValues) == 0 {
+		return "", errors.New("no queued select-value")
+	}
+	value := p.selectValueValues[0]
+	p.selectValueValues = p.selectValueValues[1:]
+	return value, nil
+}
+
+func TestResolveDeployInputsAlignsDefaultProjectWithResolvedEnv(t *testing.T) {
+	repoRoot := t.TempDir()
+	setWorkingDir(t, repoRoot)
+	if err := os.WriteFile(filepath.Join(repoRoot, "docker-compose.docker.yml"), []byte("version: '3'\n"), 0o600); err != nil {
+		t.Fatalf("write compose marker: %v", err)
+	}
+	templatePath := filepath.Join(repoRoot, "template.yaml")
+	if err := os.WriteFile(templatePath, []byte("Resources: {}\n"), 0o600); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+
+	prevIsTerminal := interaction.IsTerminal
+	interaction.IsTerminal = func(_ *os.File) bool { return true }
+	t.Cleanup(func() {
+		interaction.IsTerminal = prevIsTerminal
+	})
+
+	prompter := &queuedInputSelectValuePrompter{
+		inputs:            []string{"", "dev", "", ""},
+		selectValueValues: []string{"proceed"},
+	}
+	cli := CLI{
+		Template: []string{templatePath},
+		Deploy: DeployCmd{
+			Mode:   "docker",
+			NoSave: true,
+		},
+	}
+	deps := Dependencies{
+		Prompter: prompter,
+		RepoResolver: func(string) (string, error) {
+			return repoRoot, nil
+		},
+		Deploy: DeployDeps{
+			Runtime: DeployRuntimeDeps{
+				RuntimeEnvResolver: fixedEnvResolver{},
+				DockerClient: func() (compose.DockerClient, error) {
+					return nil, errors.New("docker unavailable")
+				},
+			},
+		},
+	}
+
+	inputs, err := resolveDeployInputs(cli, deps)
+	if err != nil {
+		t.Fatalf("resolve deploy inputs: %v", err)
+	}
+	if got := inputs.Env; got != "dev" {
+		t.Fatalf("expected env dev, got %q", got)
+	}
+	if got := inputs.Project; got != "esb-dev" {
+		t.Fatalf("expected project to follow env (esb-dev), got %q", got)
+	}
+	if got := inputs.ProjectSource; got != "default" {
+		t.Fatalf("expected default project source, got %q", got)
+	}
+	if len(prompter.inputTitles) < 2 {
+		t.Fatalf("expected prompt calls for project/env, got %d", len(prompter.inputTitles))
+	}
+	if !strings.Contains(prompter.inputTitles[0], "Compose project") {
+		t.Fatalf("expected first prompt to be project input, got %q", prompter.inputTitles[0])
+	}
+	if !strings.Contains(prompter.inputTitles[1], "Environment name") {
+		t.Fatalf("expected second prompt to be env input, got %q", prompter.inputTitles[1])
+	}
+}
+
 func TestResolveDeployInputsKeepsImageRuntimeAcrossEditLoop(t *testing.T) {
 	repoRoot := t.TempDir()
 	setWorkingDir(t, repoRoot)

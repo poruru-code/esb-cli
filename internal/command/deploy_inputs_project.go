@@ -64,3 +64,18 @@ func resolveDeployProject(
 		return selected, "prompt", nil
 	}
 }
+
+func reconcileDeployProjectWithEnv(
+	currentProject string,
+	projectSource string,
+	selectedEnv string,
+) (string, string) {
+	if strings.TrimSpace(projectSource) != "default" {
+		return currentProject, projectSource
+	}
+	env := strings.TrimSpace(selectedEnv)
+	if env == "" {
+		return currentProject, projectSource
+	}
+	return defaultDeployProject(env), "default"
+}

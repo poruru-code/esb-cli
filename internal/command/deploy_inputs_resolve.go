@@ -107,6 +107,7 @@ func (r deployInputsResolver) resolveInputIteration(
 	if err != nil {
 		return deployInputs{}, err
 	}
+	runtimeCtx = r.alignRuntimeProjectWithSelectedEnv(runtimeCtx, selectedEnv)
 	envChanged := selectedEnv.Value != runtimeCtx.prevEnv
 
 	mode, err := r.resolveMode(cli, runtimeCtx, storedDefaults, last)
@@ -215,6 +216,24 @@ func (r deployInputsResolver) resolveRuntimeContext(cli CLI, last deployInputs) 
 		inferredModeSrc:  inferredModeSource,
 		modeInferenceErr: modeInferErr,
 	}, nil
+}
+
+func (r deployInputsResolver) alignRuntimeProjectWithSelectedEnv(
+	ctx deployRuntimeContext,
+	selectedEnv envChoice,
+) deployRuntimeContext {
+	alignedProject, alignedSource := reconcileDeployProjectWithEnv(
+		ctx.composeProject,
+		ctx.projectSource,
+		selectedEnv.Value,
+	)
+	if alignedProject == ctx.composeProject && alignedSource == ctx.projectSource {
+		return ctx
+	}
+	ctx.composeProject = alignedProject
+	ctx.projectSource = alignedSource
+	ctx.inferredMode, ctx.inferredModeSrc, ctx.modeInferenceErr = r.resolveRuntimeModeInference(alignedProject)
+	return ctx
 }
 
 func (r deployInputsResolver) resolveRuntimeRepoRoot() (string, error) {

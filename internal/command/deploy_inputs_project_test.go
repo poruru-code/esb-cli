@@ -73,3 +73,62 @@ func TestResolveDeployProjectInteractiveReturnsPromptError(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestReconcileDeployProjectWithEnv(t *testing.T) {
+	tests := []struct {
+		name        string
+		current     string
+		source      string
+		env         string
+		wantProject string
+		wantSource  string
+	}{
+		{
+			name:        "default source follows env",
+			current:     "esb-default",
+			source:      "default",
+			env:         "dev",
+			wantProject: "esb-dev",
+			wantSource:  "default",
+		},
+		{
+			name:        "prompt source keeps manual project",
+			current:     "custom-project",
+			source:      "prompt",
+			env:         "dev",
+			wantProject: "custom-project",
+			wantSource:  "prompt",
+		},
+		{
+			name:        "previous source keeps previous project",
+			current:     "esb-prev",
+			source:      "previous",
+			env:         "prod",
+			wantProject: "esb-prev",
+			wantSource:  "previous",
+		},
+		{
+			name:        "empty env keeps current default project",
+			current:     "esb-default",
+			source:      "default",
+			env:         "",
+			wantProject: "esb-default",
+			wantSource:  "default",
+		},
+	}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			gotProject, gotSource := reconcileDeployProjectWithEnv(tc.current, tc.source, tc.env)
+			if gotProject != tc.wantProject || gotSource != tc.wantSource {
+				t.Fatalf(
+					"unexpected result: got=(%q,%q) want=(%q,%q)",
+					gotProject,
+					gotSource,
+					tc.wantProject,
+					tc.wantSource,
+				)
+			}
+		})
+	}
+}
